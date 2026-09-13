@@ -1,0 +1,1490 @@
+============================================================
+                 SOUNDSKETCH — PROJECT PLAN
+============================================================
+
+Project Type:
+Interactive visual music composition website + multiplayer
+music-charades game
+
+Working Name:
+SoundSketch
+
+Tagline:
+"Draw music. Hear what you see."
+
+
+============================================================
+1. PROJECT OVERVIEW
+============================================================
+
+SoundSketch is a browser-based application that turns visual
+designs into music.
+
+The main idea is:
+
+        VISUAL INPUT
+             ↓
+        PARSER / ANALYZER
+             ↓
+        MUSIC DATA
+             ↓
+        AUDIO ENGINE
+             ↓
+           SOUND
+
+The primary way of creating music is DRAWING.
+
+A user draws on a canvas/grid. The position and colour of each
+part of the drawing determine how the resulting music sounds.
+
+The application also has an ASCII mode, where users can type
+ASCII art instead of drawing.
+
+Both Drawing Mode and ASCII Mode MUST use the same underlying
+music engine.
+
+This is important because the project should not have two
+completely separate systems for converting visuals into music.
+
+
+============================================================
+2. MAIN MODES
+============================================================
+
+The application has two major modes:
+
+    A. CREATION MODE
+    B. MUSIC CHARADES
+
+
+------------------------------------------------------------
+A. CREATION MODE
+------------------------------------------------------------
+
+This is the DEFAULT and primary mode of the website.
+
+The user immediately sees a drawing interface.
+
+The user can:
+
+    - Draw on a canvas/grid
+    - Erase parts of the drawing
+    - Select colours
+    - Change brush size
+    - Clear the canvas
+    - Choose a musical scale
+    - Adjust tempo
+    - Play the resulting music
+    - Pause/stop playback
+    - Change instrument mappings
+
+The drawing is converted into music.
+
+Basic mapping:
+
+    X POSITION  →  TIME
+    Y POSITION  →  PITCH
+    COLOUR      →  INSTRUMENT
+
+Example:
+
+A mark near the LEFT side of the canvas
+    → plays EARLIER
+
+A mark near the RIGHT side
+    → plays LATER
+
+A mark near the TOP
+    → plays a HIGHER note
+
+A mark near the BOTTOM
+    → plays a LOWER note
+
+A red mark
+    → could represent a violin
+
+A blue mark
+    → could represent a cello
+
+
+------------------------------------------------------------
+B. MUSIC CHARADES
+------------------------------------------------------------
+
+Music Charades is a multiplayer game.
+
+Players join a temporary room using a room code.
+
+Example:
+
+    Room Code: K7F2Q
+
+One player becomes the COMPOSER.
+
+The composer receives a song/piece to represent visually.
+
+The composer chooses HOW to represent it:
+
+    1. DRAWING MODE
+    2. ASCII MODE
+
+The other players try to guess the song.
+
+Basic flow:
+
+    Players join room
+          ↓
+    Game starts
+          ↓
+    Composer selected
+          ↓
+    Composer chooses:
+        Drawing OR ASCII
+          ↓
+    Composer creates representation
+          ↓
+    Other players guess
+          ↓
+    Timer runs
+          ↓
+    Guessing ends
+          ↓
+    Answer is revealed
+          ↓
+    Visual creation is shown
+          ↓
+    SoundSketch plays the musical interpretation
+          ↓
+    Scores are updated
+          ↓
+    Next round
+
+
+============================================================
+3. MUSIC MAPPING SYSTEM
+============================================================
+
+The core music system converts visual information into
+structured musical events.
+
+Every visual mark should eventually become something like:
+
+    {
+        x: 20,
+        y: 8,
+        colour: "blue",
+        instrument: "cello",
+        pitch: 60,
+        time: 2.5
+    }
+
+The exact implementation may change, but the concept should
+remain the same.
+
+A musical event contains:
+
+    - Position
+    - Pitch
+    - Time
+    - Instrument
+    - Potentially duration
+    - Potentially volume
+
+
+------------------------------------------------------------
+X → TIME
+------------------------------------------------------------
+
+The horizontal position determines WHEN a note plays.
+
+Example:
+
+    LEFT                         RIGHT
+     ↓                             ↓
+
+    |-----------------------------|
+    0s            2s             4s
+
+A point at x = 0:
+    → plays near the beginning
+
+A point at the middle:
+    → plays around the middle
+
+A point at the right:
+    → plays near the end
+
+
+------------------------------------------------------------
+Y → PITCH
+------------------------------------------------------------
+
+The vertical position determines the note.
+
+For example:
+
+    TOP
+     ↑
+     │  C5
+     │  B4
+     │  A4
+     │  G4
+     │  F4
+     │  E4
+     │  D4
+     │  C4
+     ↓
+    BOTTOM
+
+Initially, the project should use a musical scale rather than
+arbitrarily assigning every possible frequency.
+
+Recommended default:
+
+    C Major Pentatonic
+
+This makes the resulting music more likely to sound musical
+even when the user draws randomly.
+
+
+------------------------------------------------------------
+COLOUR → INSTRUMENT
+------------------------------------------------------------
+
+Example default mapping:
+
+    RED       → Violin
+    ORANGE    → Trumpet
+    YELLOW    → Piano
+    GREEN     → Flute
+    BLUE      → Cello
+    PURPLE    → Harp
+
+These mappings should eventually be customizable.
+
+The colour system should be designed so that adding or changing
+instruments later does not require rewriting the music engine.
+
+
+============================================================
+4. DRAWING MODE
+============================================================
+
+Drawing Mode is the primary interface.
+
+The user draws using a mouse or potentially touch input.
+
+Basic controls:
+
+    [Colour Palette]
+
+    [Brush Size]
+
+    [Eraser]
+
+    [Clear]
+
+    [Play]
+
+    [Pause]
+
+    [Stop]
+
+    [Tempo]
+
+    [Scale]
+
+    [Instrument Mapping]
+
+
+------------------------------------------------------------
+DRAWING REPRESENTATION
+------------------------------------------------------------
+
+The drawing should NOT immediately become audio.
+
+Instead:
+
+    Drawing
+       ↓
+    Drawing Parser
+       ↓
+    Visual Data
+       ↓
+    Music Data
+       ↓
+    Audio Engine
+
+
+This separation is important.
+
+For example, the drawing system might produce:
+
+    [
+        { x: 2, y: 5, colour: "red" },
+        { x: 3, y: 5, colour: "red" },
+        { x: 10, y: 2, colour: "blue" }
+    ]
+
+The music system then converts this into:
+
+    [
+        { time: 0.2, pitch: 60, instrument: "violin" },
+        { time: 0.3, pitch: 60, instrument: "violin" },
+        { time: 1.0, pitch: 67, instrument: "cello" }
+    ]
+
+The audio engine then plays those notes.
+
+
+============================================================
+5. SCANNER
+============================================================
+
+The drawing is played using a moving vertical scanner.
+
+Conceptually:
+
+    DRAWING
+
+    ┌─────────────────────────────┐
+    │       ●                     │
+    │             ●               │
+    │                    ●        │
+    │   ●                         │
+    └─────────────────────────────┘
+      ↑
+    scanner
+
+The scanner moves from LEFT → RIGHT.
+
+Whenever it reaches a visual mark, the corresponding note is
+played.
+
+Example:
+
+    scanner position = x = 20
+
+    Find all marks near x = 20
+
+    For each mark:
+        determine pitch from Y
+        determine instrument from colour
+        play note
+
+
+The scanner should also provide visual feedback so the user can
+see exactly where the music is currently being generated.
+
+
+============================================================
+6. ASCII MODE
+============================================================
+
+ASCII Mode is an alternative input method.
+
+It is NOT the default interface.
+
+Example input:
+
+    * * *     # #
+    
+    ~ ~ ~
+    
+        @ @ @
+
+
+The program detects the different symbols.
+
+For example:
+
+    *
+    #
+    ~
+    @
+
+
+The user then assigns instruments:
+
+    * → Piano
+    # → Violin
+    ~ → Flute
+    @ → Cello
+
+
+The ASCII parser records where every symbol occurs.
+
+Example:
+
+    *
+      *
+        *
+          *
+
+could become:
+
+    * at (0,0)
+    * at (2,1)
+    * at (4,2)
+    * at (6,3)
+
+
+The coordinates are then converted into musical information.
+
+Therefore:
+
+    ASCII
+      ↓
+    ASCII Parser
+      ↓
+    Visual Data
+      ↓
+    Music Data
+      ↓
+    Audio Engine
+
+
+IMPORTANT:
+
+ASCII Mode and Drawing Mode should NOT have separate music
+engines.
+
+They should both eventually produce the same kind of
+structured visual data.
+
+
+============================================================
+7. AUDIO SYSTEM
+============================================================
+
+The initial audio system should use the browser's:
+
+    Web Audio API
+
+This avoids requiring external audio software.
+
+The first version does NOT need realistic instrument samples.
+
+Start with simple synthesized sounds.
+
+For example:
+
+    oscillator → gain → audio output
+
+Once basic playback works, additional sounds can be added.
+
+Possible progression:
+
+    Version 1:
+        Simple synthesized tone
+
+    Version 2:
+        Different synthesized sounds for instruments
+
+    Version 3:
+        Higher-quality samples / sound libraries
+
+
+The important first milestone is:
+
+    ONE VISUAL POINT
+          ↓
+      ONE NOTE
+          ↓
+        SOUND
+
+
+============================================================
+8. AUDIO EXPORT
+============================================================
+
+Audio export should NOT be implemented first.
+
+First make playback reliable.
+
+After playback works:
+
+    Drawing
+       ↓
+    Music Events
+       ↓
+    Audio Engine
+       ↓
+    Record Audio
+       ↓
+    WAV File
+
+
+WAV should be the initial export format.
+
+MP3 export is a STRETCH GOAL.
+
+Do not let MP3 conversion delay the core project.
+
+
+============================================================
+9. MUSIC CONTROLS
+============================================================
+
+The application should eventually provide:
+
+    Tempo / BPM
+    Musical Scale
+    Note Duration
+    Volume
+    Scanner Speed
+    Playback Direction
+    Instrument Mapping
+
+Possible scales:
+
+    C Major
+    C Minor
+    Major Pentatonic
+    Minor Pentatonic
+    Dorian
+    Blues
+    Chromatic
+
+
+Initially, only implement:
+
+    - One or two scales
+    - Tempo
+    - Basic playback controls
+
+More scales can be added later.
+
+
+============================================================
+10. MULTIPLAYER ARCHITECTURE
+============================================================
+
+Multiplayer is only necessary for Music Charades.
+
+The website does NOT need user accounts.
+
+Players simply create or join a temporary room.
+
+Example:
+
+    Browser A ─┐
+    Browser B ─┤
+    Browser C ─┼── WebSocket Server
+    Browser D ─┘
+
+
+The server temporarily stores:
+
+    Room
+    Players
+    Current round
+    Composer
+    Game state
+    Drawing / ASCII data
+    Guesses
+    Timer
+    Scores
+
+
+There is NO need for a permanent database for the first version.
+
+When the game ends, the temporary room can disappear.
+
+
+============================================================
+11. TECHNOLOGY STACK
+============================================================
+
+FRONTEND
+------------------------------------------------------------
+
+Languages:
+
+    HTML
+    CSS
+    JavaScript
+
+HTML:
+    Page structure and UI
+
+CSS:
+    Layout
+    Styling
+    Animations
+    Responsive design
+
+JavaScript:
+    Drawing logic
+    ASCII parsing
+    Music conversion
+    UI interaction
+    Audio
+    Game logic
+
+
+AUDIO
+------------------------------------------------------------
+
+    Web Audio API
+
+Used for:
+
+    - Oscillators
+    - Gain/volume
+    - Scheduling notes
+    - Playback
+
+
+DRAWING
+------------------------------------------------------------
+
+Primary technology:
+
+    HTML Canvas
+
+Canvas is appropriate because the application needs:
+
+    - Drawing
+    - Erasing
+    - Colour
+    - Coordinates
+    - Animation
+    - Scanner line
+
+
+MULTIPLAYER
+------------------------------------------------------------
+
+Frontend:
+
+    JavaScript
+
+Backend:
+
+    Node.js
+
+Communication:
+
+    WebSockets
+
+
+HOSTING
+------------------------------------------------------------
+
+Frontend can be hosted using:
+
+    GitHub Pages
+
+or:
+
+    Cloudflare Pages
+
+The multiplayer WebSocket server will require a separate
+server capable of maintaining WebSocket connections.
+
+
+DATABASE
+------------------------------------------------------------
+
+NO DATABASE initially.
+
+The project only needs temporary multiplayer state.
+
+A database can be introduced later if features such as:
+
+    - Accounts
+    - Saved compositions
+    - Leaderboards
+    - Persistent rooms
+
+are added.
+
+
+============================================================
+12. FOLDER STRUCTURE
+============================================================
+
+Recommended structure:
+
+    soundsketch/
+    │
+    ├── index.html
+    │
+    ├── css/
+    │   ├── style.css
+    │   └── drawing.css
+    │
+    ├── js/
+    │   ├── main.js
+    │   │
+    │   ├── drawing/
+    │   │   ├── canvas.js
+    │   │   ├── drawingParser.js
+    │   │   └── scanner.js
+    │   │
+    │   ├── ascii/
+    │   │   └── asciiParser.js
+    │   │
+    │   ├── music/
+    │   │   ├── musicData.js
+    │   │   ├── pitchMapper.js
+    │   │   ├── timeMapper.js
+    │   │   ├── instrumentMapper.js
+    │   │   └── audioEngine.js
+    │   │
+    │   ├── modes/
+    │   │   ├── creationMode.js
+    │   │   └── charadesMode.js
+    │   │
+    │   └── ui/
+    │       ├── controls.js
+    │       └── menu.js
+    │
+    ├── server/
+    │   ├── server.js
+    │   ├── rooms.js
+    │   └── gameState.js
+    │
+    ├── assets/
+    │   ├── icons/
+    │   └── images/
+    │
+    └── README.md
+
+
+For the very first prototype, however, this should be MUCH
+smaller.
+
+Start with:
+
+    soundsketch/
+    │
+    ├── index.html
+    ├── style.css
+    └── script.js
+
+Only split the JavaScript into multiple files when the project
+actually becomes large enough to justify it.
+
+
+============================================================
+13. CODE ARCHITECTURE
+============================================================
+
+The most important architectural idea is separation of
+responsibilities.
+
+Do NOT make one giant JavaScript file responsible for everything.
+
+The major components are:
+
+    ┌─────────────────────┐
+    │   DRAWING INPUT     │
+    └──────────┬──────────┘
+               │
+               ↓
+    ┌─────────────────────┐
+    │  DRAWING PARSER     │
+    └──────────┬──────────┘
+               │
+               ↓
+    ┌─────────────────────┐
+    │    MUSIC DATA       │
+    │     MODEL           │
+    └──────────┬──────────┘
+               │
+               ↓
+    ┌─────────────────────┐
+    │    MUSIC MAPPER     │
+    │                     │
+    │ X → Time            │
+    │ Y → Pitch           │
+    │ Colour → Instrument │
+    └──────────┬──────────┘
+               │
+               ↓
+    ┌─────────────────────┐
+    │    AUDIO ENGINE     │
+    └──────────┬──────────┘
+               │
+               ↓
+             SOUND
+
+
+ASCII follows exactly the same architecture:
+
+    ASCII INPUT
+         ↓
+    ASCII PARSER
+         ↓
+    MUSIC DATA
+         ↓
+    MUSIC MAPPER
+         ↓
+    AUDIO ENGINE
+         ↓
+       SOUND
+
+
+============================================================
+14. MUSIC DATA MODEL
+============================================================
+
+The central data structure should be something similar to:
+
+    NoteEvent
+
+containing information such as:
+
+    {
+        time,
+        pitch,
+        instrument,
+        duration,
+        volume
+    }
+
+
+Visual information can initially be represented as:
+
+    {
+        x,
+        y,
+        colour
+    }
+
+
+Then a conversion function turns:
+
+    VisualPoint
+
+into:
+
+    NoteEvent
+
+
+Example:
+
+    Visual Point:
+
+    {
+        x: 50,
+        y: 20,
+        colour: "red"
+    }
+
+becomes:
+
+    Note Event:
+
+    {
+        time: 2.5,
+        pitch: 64,
+        instrument: "violin",
+        duration: 0.25,
+        volume: 0.8
+    }
+
+
+This central data model is one of the most important parts of
+the project.
+
+
+============================================================
+15. DEVELOPMENT ORDER
+============================================================
+
+DO NOT start by building the entire website.
+
+Build the underlying system first.
+
+
+PHASE 1 — ASCII PARSER
+------------------------------------------------------------
+
+Create a tiny JavaScript program.
+
+Input:
+
+    *
+      *
+        *
+          *
+
+Output:
+
+    Found 4 symbols
+
+    * at (0,0)
+    * at (2,1)
+    * at (4,2)
+    * at (6,3)
+
+
+Goal:
+
+    Prove that visual information can be converted into
+    structured data.
+
+
+PHASE 2 — FIRST NOTE
+------------------------------------------------------------
+
+Take ONE visual point.
+
+Convert:
+
+    x → time
+    y → pitch
+
+Then generate:
+
+    ONE NOTE
+
+Play it using Web Audio API.
+
+Milestone:
+
+    visual point → note → sound
+
+
+PHASE 3 — MULTIPLE NOTES
+------------------------------------------------------------
+
+Convert several visual points into several notes.
+
+Example:
+
+    ●
+       ●
+          ●
+             ●
+
+becomes:
+
+    note
+       note
+          note
+             note
+
+Play them at the correct times.
+
+
+PHASE 4 — DRAWING MODE
+------------------------------------------------------------
+
+Build the actual drawing canvas.
+
+Implement:
+
+    - Drawing
+    - Erasing
+    - Clearing
+    - Colour selection
+    - Brush size
+
+
+PHASE 5 — SCANNER
+------------------------------------------------------------
+
+Add the moving vertical scanner.
+
+The scanner reads the drawing from left to right.
+
+Connect scanner position to note playback.
+
+
+PHASE 6 — COLOUR / INSTRUMENTS
+------------------------------------------------------------
+
+Implement:
+
+    Colour → Instrument
+
+Initially use simple synthesized sounds.
+
+Do not worry about realistic instruments yet.
+
+
+PHASE 7 — MUSIC CONTROLS
+------------------------------------------------------------
+
+Add:
+
+    Tempo
+    Scale
+    Volume
+    Play
+    Pause
+    Stop
+
+
+PHASE 8 — ASCII MODE
+------------------------------------------------------------
+
+Create the actual ASCII interface.
+
+Connect it to the SAME music engine used by Drawing Mode.
+
+
+PHASE 9 — AUDIO EXPORT
+------------------------------------------------------------
+
+Add WAV recording/export.
+
+MP3 is optional.
+
+
+PHASE 10 — MULTIPLAYER
+------------------------------------------------------------
+
+Create:
+
+    Create Room
+    Join Room
+    Room Code
+    Player List
+
+Use WebSockets.
+
+
+PHASE 11 — CHARADES
+------------------------------------------------------------
+
+Implement:
+
+    Composer selection
+    Drawing/ASCII selection
+    Timer
+    Guess submission
+    Answer reveal
+    Playback
+
+
+PHASE 12 — SCORING
+------------------------------------------------------------
+
+Optional:
+
+    Correct guess → points
+    Faster guess → more points
+    Successful composer → points
+
+
+PHASE 13 — POLISH
+------------------------------------------------------------
+
+Improve:
+
+    UI
+    Animations
+    Error handling
+    Mobile support
+    Instructions
+    Loading states
+    README
+    Deployment
+
+
+============================================================
+16. TWO-WEEK MVP
+============================================================
+
+The project should NOT attempt to build every possible feature
+in two weeks.
+
+The minimum viable version should be:
+
+MUST HAVE
+------------------------------------------------------------
+
+    ✓ Drawing Mode
+    ✓ Canvas/grid
+    ✓ Drawing
+    ✓ Erasing
+    ✓ Colour selection
+    ✓ X → time
+    ✓ Y → pitch
+    ✓ Colour → instrument
+    ✓ Basic audio playback
+    ✓ Scanner animation
+    ✓ Tempo
+    ✓ At least one musical scale
+    ✓ ASCII Mode
+    ✓ ASCII symbol detection
+    ✓ Symbol → instrument mapping
+
+
+SHOULD HAVE
+------------------------------------------------------------
+
+    ✓ WAV export
+    ✓ Multiplayer rooms
+    ✓ Drawing/ASCII selection in Charades
+    ✓ Timer
+    ✓ Guess submission
+    ✓ Answer reveal
+    ✓ Play the resulting composition
+
+
+STRETCH GOALS
+------------------------------------------------------------
+
+    - MP3 export
+    - Multiple rounds
+    - Scoring
+    - Realistic instrument samples
+    - More scales
+    - Ping-pong scanner
+    - Reverse playback
+    - Mobile support
+    - Reconnection handling
+    - Spectator mode
+    - Saved compositions
+
+
+============================================================
+17. TWO-WEEK SCHEDULE
+============================================================
+
+DAY 1
+    ASCII parser
+    Coordinate system
+    Visual data structure
+
+DAY 2
+    Finish parser
+    Build music data model
+
+DAY 3
+    X → time
+    Y → pitch
+    Create first NoteEvent
+
+DAY 4
+    Web Audio API
+    Play one note
+    Play multiple notes
+
+DAY 5
+    Canvas
+    Drawing
+    Erasing
+
+DAY 6
+    Connect canvas → music
+    Build scanner
+
+DAY 7
+    Colour system
+    Instrument mapping
+
+DAY 8
+    Tempo
+    Scale
+    Playback controls
+
+DAY 9
+    ASCII interface
+    Connect ASCII → music engine
+
+DAY 10
+    Polish playback
+    WAV export if possible
+
+DAY 11
+    WebSocket server
+    Create/join rooms
+
+DAY 12
+    Synchronize players
+    Game state
+
+DAY 13
+    Music Charades
+    Timer
+    Guessing
+    Reveal
+
+DAY 14
+    Testing
+    Bug fixing
+    UI polish
+    README
+    Deployment
+    Demo video/screenshots
+
+
+============================================================
+18. IMPORTANT DESIGN PRINCIPLES
+============================================================
+
+1. DRAWING IS THE MAIN FEATURE.
+
+The website should feel like a visual music creation tool first.
+
+ASCII is an alternate input method.
+
+Charades is the secondary game mode.
+
+
+2. ONE MUSIC ENGINE.
+
+Drawing and ASCII must eventually feed into the same system.
+
+Do not build two independent audio systems.
+
+
+3. DATA BEFORE AUDIO.
+
+Do not make the drawing directly control the audio.
+
+Instead:
+
+    Visual Input
+        ↓
+    Structured Data
+        ↓
+    Music Data
+        ↓
+    Audio
+
+
+4. BUILD THE SMALLEST VERSION FIRST.
+
+Do not start with multiplayer.
+
+The first important milestone is:
+
+    ONE POINT → ONE NOTE → SOUND
+
+
+5. AVOID UNNECESSARY TECHNOLOGY.
+
+Initial project:
+
+    HTML
+    CSS
+    JavaScript
+    Canvas
+    Web Audio API
+
+Only introduce:
+
+    Node.js
+    WebSockets
+    React
+    databases
+    external audio libraries
+
+when they are actually needed.
+
+
+============================================================
+19. POSSIBLE FINAL WEBSITE STRUCTURE
+============================================================
+
+Landing page:
+
+    ┌──────────────────────────────────────────┐
+    │               SOUNDSKETCH                │
+    │         Draw music. Hear what you see.   │
+    │                                          │
+    │       [ CREATE ]   [ MUSIC CHARADES ]   │
+    └──────────────────────────────────────────┘
+
+
+Creation Mode:
+
+    ┌──────────────────────────────────────────┐
+    │  SoundSketch              [Charades]      │
+    │                                          │
+    │  Colours: ● ● ● ● ● ●                   │
+    │                                          │
+    │  ┌────────────────────────────────────┐  │
+    │  │                                    │  │
+    │  │       DRAWING CANVAS               │  │
+    │  │             │                      │  │
+    │  │       ●     │       ●              │  │
+    │  │             │          ●           │  │
+    │  │   ●         │                      │  │
+    │  │             │                      │  │
+    │  └────────────────────────────────────┘  │
+    │                                          │
+    │  [Play] [Pause] [Stop] [Clear]           │
+    │                                          │
+    │  Tempo: 120 BPM                          │
+    │  Scale: C Major Pentatonic               │
+    │                                          │
+    │  [ASCII Mode]                            │
+    └──────────────────────────────────────────┘
+
+
+Music Charades:
+
+    ┌──────────────────────────────────────────┐
+    │             MUSIC CHARADES               │
+    │                                          │
+    │  Room: K7F2Q                             │
+    │                                          │
+    │  Players:                                │
+    │    Warren                                │
+    │    Alex                                  │
+    │    Sam                                   │
+    │    Jordan                                │
+    │                                          │
+    │  Composer: Alex                          │
+    │                                          │
+    │  Mode: [Drawing] [ASCII]                 │
+    │                                          │
+    │  Time Remaining: 00:17                   │
+    │                                          │
+    │  ┌────────────────────────────────────┐  │
+    │  │                                    │  │
+    │  │        COMPOSER'S CREATION         │  │
+    │  │                                    │  │
+    │  └────────────────────────────────────┘  │
+    │                                          │
+    │  Guess: [________________________]       │
+    │                                          │
+    │  [Submit Guess]                          │
+    └──────────────────────────────────────────┘
+
+
+============================================================
+20. FINAL ARCHITECTURE
+============================================================
+
+                    SOUNDSKETCH
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+              ↓                     ↓
+        CREATION MODE        MUSIC CHARADES
+              │                     │
+       ┌──────┴──────┐       ┌──────┴──────┐
+       ↓             ↓       ↓             ↓
+    DRAWING        ASCII   DRAWING        ASCII
+       │             │       │             │
+       └──────┬──────┘       └──────┬──────┘
+              ↓                     ↓
+         VISUAL DATA           WEBSOCKET
+              │                 SYNC / GAME
+              ↓                     │
+        MUSIC DATA                  │
+              │                     │
+              ↓                     │
+       MUSIC MAPPERS                │
+       │     │      │               │
+       ↓     ↓      ↓               │
+      TIME  PITCH  INSTRUMENT       │
+       │     │      │               │
+       └─────┴──────┘               │
+              ↓                     │
+         AUDIO ENGINE               │
+              │                     │
+              ↓                     │
+           PLAYBACK                 │
+              │                     │
+              ↓                     │
+         WAV EXPORT                 │
+                                    │
+                                    ↓
+                              GAME STATE
+                                    │
+                              ┌─────┴─────┐
+                              ↓           ↓
+                           GUESSES      SCORES
+
+
+============================================================
+21. RESUME VALUE
+============================================================
+
+Possible project title:
+
+    SoundSketch — Interactive Visual Music & Multiplayer Game
+
+
+Possible resume bullet #1:
+
+    Developed a browser-based visual music composition tool
+    converting drawings and ASCII art into musical sequences
+    through spatial pitch/timing transformations and
+    customizable instrument mappings.
+
+
+Possible resume bullet #2:
+
+    Implemented a Web Audio-based music engine with animated
+    scanning playback, tempo/scale controls, and structured
+    visual-to-musical event processing.
+
+
+Possible resume bullet #3:
+
+    Built a multiplayer music-charades mode using WebSockets,
+    supporting temporary game rooms, synchronized visual input,
+    timed guessing, and real-time game state.
+
+
+============================================================
+22. FIRST CODING TASK
+============================================================
+
+DO NOT start by creating the full website.
+
+Create:
+
+    index.html
+    style.css
+    script.js
+
+Then write the smallest possible ASCII parser.
+
+Input:
+
+    *
+      *
+        *
+          *
+
+The program should output:
+
+    Symbol: *
+    Position: (0,0)
+
+    Symbol: *
+    Position: (2,1)
+
+    Symbol: *
+    Position: (4,2)
+
+    Symbol: *
+    Position: (6,3)
+
+
+Then create a function that takes ONE of those points and
+converts it into a musical note.
+
+For example:
+
+    Point
+      ↓
+    x = time
+    y = pitch
+      ↓
+    NoteEvent
+      ↓
+    Web Audio API
+      ↓
+    SOUND
+
+
+Once that works, everything else can be built on top of it.
+
+
+============================================================
+                  END OF PROJECT PLAN
+============================================================

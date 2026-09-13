@@ -1,0 +1,137 @@
+{
+  "baseUrl": "assets/soundbank",
+  "noteDuration": 3,
+  "noteCount": 25,
+  "instruments": {
+    "#E81B1B": {
+      "name": "Violin",
+      "emoji": "🎻",
+      "program": 40,
+      "file": "assets/soundbank/violin.wav",
+      "sustain": true
+    },
+    "#F39C12": {
+      "name": "Trumpet",
+      "emoji": "🎺",
+      "program": 56,
+      "file": "assets/soundbank/trumpet.wav",
+      "sustain": true
+    },
+    "#F1C40F": {
+      "name": "Piano",
+      "emoji": "🎹",
+      "program": 0,
+      "file": "assets/soundbank/piano.wav",
+      "sustain": false
+    },
+    "#2ECC71": {
+      "name": "Flute",
+      "emoji": "🪈",
+      "program": 73,
+      "file": "assets/soundbank/flute.wav",
+      "sustain": true
+    },
+    "#1ABC9C": {
+      "name": "Harp",
+      "emoji": "🎵",
+      "program": 46,
+      "file": "assets/soundbank/harp.wav",
+      "sustain": false
+    },
+    "#3498DB": {
+      "name": "Cello",
+      "emoji": "🎻",
+      "program": 42,
+      "file": "assets/soundbank/cello.wav",
+      "sustain": true
+    },
+    "#9B59B6": {
+      "name": "Clarinet",
+      "emoji": "🎷",
+      "program": 71,
+      "file": "assets/soundbank/clarinet.wav",
+      "sustain": true
+    },
+    "#E91E63": {
+      "name": "Synth",
+      "emoji": "🎛️",
+      "program": 80,
+      "file": "assets/soundbank/synth.wav",
+      "sustain": true
+    }
+  },
+  "fallback": {
+    "#E81B1B": {
+      "name": "Violin",
+      "emoji": "🎻",
+      "type": "sawtooth",
+      "attack": 0.05,
+      "decay": 0.1,
+      "sustain": 0.6,
+      "release": 0.4
+    },
+    "#F39C12": {
+      "name": "Trumpet",
+      "emoji": "🎺",
+      "type": "square",
+      "attack": 0.02,
+      "decay": 0.1,
+      "sustain": 0.7,
+      "release": 0.3
+    },
+    "#F1C40F": {
+      "name": "Piano",
+      "emoji": "🎹",
+      "type": "triangle",
+      "attack": 0.005,
+      "decay": 0.2,
+      "sustain": 0.1,
+      "release": 0.3
+    },
+    "#2ECC71": {
+      "name": "Flute",
+      "emoji": "🪈",
+      "type": "sine",
+      "attack": 0.05,
+      "decay": 0.1,
+      "sustain": 0.6,
+      "release": 0.3
+    },
+    "#1ABC9C": {
+      "name": "Harp",
+      "emoji": "🎵",
+      "type": "triangle",
+      "attack": 0.005,
+      "decay": 0.3,
+      "sustain": 0.1,
+      "release": 0.6
+    },
+    "#3498DB": {
+      "name": "Cello",
+      "emoji": "🎻",
+      "type": "sawtooth",
+      "attack": 0.08,
+      "decay": 0.15,
+      "sustain": 0.7,
+      "release": 0.5
+    },
+    "#9B59B6": {
+      "name": "Clarinet",
+      "emoji": "🎷",
+      "type": "square",
+      "attack": 0.05,
+      "decay": 0.1,
+      "sustain": 0.6,
+      "release": 0.3
+    },
+    "#E91E63": {
+      "name": "Synth",
+      "emoji": "🎛️",
+      "type": "sawtooth",
+      "attack": 0.01,
+      "decay": 0.1,
+      "sustain": 0.5,
+      "release": 0.4
+    }
+  }
+}

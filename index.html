@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thesia</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-mode="create">
+  <header class="top-bar">
+    <a class="brand" href="/" aria-label="Thesia home">
+      <img class="logo" src="favicon.ico" alt="Thesia logo">
+      <span class="brand-name">Thesia</span>
+    </a>
+
+    <nav class="mode-switch" aria-label="Mode switch">
+      <button class="mode-btn active" data-mode="create">Create</button>
+      <button class="mode-btn" data-mode="game">Game Mode</button>
+    </nav>
+  </header>
+
+  <main class="workspace">
+    <section class="page-title" id="pageTitle">
+      <img src="favicon.ico" alt="Thesia logo">
+      <div class="title-text">
+        <h1>Thesia</h1>
+        <span class="page-subtitle" id="modeSubtitle">Create mode</span>
+      </div>
+    </section>
+
+    <!-- Shared game status banner (visible in both Create and Game mode) -->
+    <div id="gameStatus" class="game-status" hidden></div>
+
+    <!-- Hangman-style answer blanks (shown during a charades turn) -->
+    <div id="hangmanSection" class="hangman-section" hidden>
+      <div id="hangmanBlanks" class="hangman-blanks"></div>
+      <p class="hangman-hint">Guess the song title (composer not needed)</p>
+    </div>
+
+    <!-- CREATE MODE -->
+    <section class="mode-panel" id="createPanel">
+      <div class="toolbar" role="toolbar" aria-label="Creation tools">
+        <div class="tool-group">
+          <button class="tool-btn active" data-tool="draw" aria-pressed="true">Draw</button>
+          <button class="tool-btn" data-tool="ascii" aria-pressed="false">ASCII</button>
+        </div>
+
+        <div class="tool-group" id="colorPalette" aria-label="Instrument colours">
+          <button class="swatch active" data-color="#E81B1B" style="--swatch:#E81B1B" aria-label="Red"></button>
+          <button class="swatch" data-color="#F39C12" style="--swatch:#F39C12" aria-label="Orange"></button>
+          <button class="swatch" data-color="#F1C40F" style="--swatch:#F1C40F" aria-label="Yellow"></button>
+          <button class="swatch" data-color="#2ECC71" style="--swatch:#2ECC71" aria-label="Green"></button>
+          <button class="swatch" data-color="#1ABC9C" style="--swatch:#1ABC9C" aria-label="Turquoise"></button>
+          <button class="swatch" data-color="#3498DB" style="--swatch:#3498DB" aria-label="Blue"></button>
+          <button class="swatch" data-color="#9B59B6" style="--swatch:#9B59B6" aria-label="Violet"></button>
+          <button class="swatch" data-color="#E91E63" style="--swatch:#E91E63" aria-label="Magenta"></button>
+        </div>
+
+        <div class="tool-group" id="eraserGroup" aria-label="Eraser">
+          <button class="tool-btn" id="eraserBtn" aria-pressed="false" title="Eraser"><span class="eraser-icon" aria-hidden="true"></span> Eraser</button>
+        </div>
+
+        <div class="tool-group guide-toggle">
+          <input type="checkbox" id="guideToggle" title="Show piano-key guide lines">
+          <label for="guideToggle">Guides</label>
+        </div>
+
+        <div class="tool-group playback-controls">
+          <button class="action-btn play" id="playBtn" aria-label="Play" disabled><span class="play-icon" aria-hidden="true"></span> Play</button>
+          <button class="action-btn" id="clearBtn" aria-label="Clear canvas">Clear</button>
+          <span class="muted" id="soundbankStatus"></span>
+        </div>
+      </div>
+
+      <div class="create-stage">
+        <div class="left-column">
+          <div class="score-panel" id="scorePanel" hidden>
+            <h4>Scores</h4>
+            <ul id="scoreList"></ul>
+          </div>
+
+          <aside class="side-controls" aria-label="Tempo">
+            <label for="speedSlider">Tempo</label>
+            <input type="range" id="speedSlider" orient="vertical" min="30" max="600" value="150">
+            <input type="number" id="speedInput" min="30" max="600" value="150" aria-label="Tempo value">
+          </aside>
+        </div>
+
+        <div class="stage-with-chat">
+          <div class="stage">
+            <canvas id="drawCanvas" aria-label="Drawing canvas with piano keyboard"></canvas>
+
+            <div class="ascii-input" id="asciiInput" hidden>
+              <label for="asciiArea">Type or paste ASCII art. Each symbol becomes a note.</label>
+              <textarea id="asciiArea" rows="8" spellcheck="false" placeholder="*   #&#10;  ~&#10;@      *"></textarea>
+              <div class="ascii-actions">
+                <div class="symbol-mappings" id="symbolMappings"></div>
+                <button class="action-btn primary" id="doneAsciiBtn" type="button">Done</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-log" id="chatLog" hidden>
+            <h4>Guesses</h4>
+            <ul id="chatLogList"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GAME MODE -->
+    <section class="mode-panel" id="gamePanel" hidden>
+      <!-- Lobby: create or join a room -->
+      <div class="game-placeholder" id="gameLobby">
+        <h2>Music Charades</h2>
+        <p>Create a room, invite friends, and take turns drawing music for others to guess.</p>
+        <div class="game-actions">
+          <button class="action-btn primary" id="createRoomBtn">Create room</button>
+        </div>
+        <div class="game-actions">
+          <input type="text" id="joinCodeInput" placeholder="Room code" maxlength="5" aria-label="Room code">
+          <button class="action-btn" id="joinRoomBtn">Join room</button>
+        </div>
+        <p class="muted" id="roomStatus"></p>
+      </div>
+
+      <!-- Waiting room: names, counter, kick, go to game -->
+      <div class="game-placeholder waiting-room" id="waitingRoom" hidden>
+        <h2>Classical music charades</h2>
+        <p class="room-code-line">
+          Room code:
+          <strong id="displayRoomCode">----</strong>
+          <button class="action-btn" id="copyCodeBtn">Copy</button>
+        </p>
+
+        <div class="name-entry" id="nameEntry">
+          <input type="text" id="playerNameInput" placeholder="Your name" maxlength="16" aria-label="Your name">
+          <button class="action-btn" id="setNameBtn">Set name</button>
+        </div>
+
+        <h3>Players <span class="player-count" id="playerCounter">0</span></h3>
+        <ul class="player-list" id="playerList"></ul>
+
+        <button class="action-btn primary" id="goToCustomizeBtn" hidden>Go to game</button>
+      </div>
+
+      <!-- Customization vote: cards + timer -->
+      <div class="game-placeholder customize-room" id="customizeRoom" hidden>
+        <h2 id="choiceTitle">Choose</h2>
+        <p class="choice-timer" id="choiceTimer">5</p>
+        <div class="choice-cards" id="choiceCards"></div>
+        <div class="choice-result" id="choiceResult" hidden>
+          <div class="choice-card chosen" id="chosenCard"></div>
+        </div>
+      </div>
+
+      <!-- In-game guess box -->
+      <div class="guess-section" id="guessSection" hidden>
+        <input type="text" id="guessInput" placeholder="Type your guess..." maxlength="50" aria-label="Guess">
+        <button class="action-btn" id="sendGuessBtn">Send guess</button>
+      </div>
+    </section>
+
+    <!-- Bottom guessing bar for charades turns -->
+    <div class="guess-bar" id="guessBar" hidden>
+      <div class="guess-timer" id="guessTimer">1:00</div>
+      <input type="text" id="guessBarInput" placeholder="Type your guess..." maxlength="50" aria-label="Guess">
+      <button class="action-btn primary" id="guessBarBtn">Send guess</button>
+    </div>
+  </main>
+
+  <footer>
+    <strong>Thesia</strong> - Interactive visual music &amp; multiplayer game. Built by <em><strong>WrenLepus</strong></em>.
+  </footer>
+
+  <script>
+    window.onerror = function(msg, url, line, col, err) {
+      const el = document.getElementById('errorLog');
+      if (el) {
+        el.style.display = 'block';
+        el.textContent += msg + ' (' + (url || 'script.js') + ':' + line + ')\n';
+      }
+      return false;
+    };
+  </script>
+
+  <!-- Socket.IO client library. The server serves this file automatically at /socket.io/socket.io.js -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <script src="script.js" defer></script>
+
+  <!-- On-page error log so you can see JS errors without opening the console -->
+  <div id="errorLog" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#8B2626; color:#fff; padding:12px; font-family:monospace; font-size:0.85rem; white-space:pre-wrap; z-index:100; max-height:200px; overflow:auto;"></div>
+</body>
+</html>
