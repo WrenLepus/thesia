@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Thesia</title>
   <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body data-mode="create">
   <header class="top-bar">
@@ -14,10 +14,18 @@
       <span class="brand-name">Thesia</span>
     </a>
 
+    <span class="game-header-title" id="gameHeaderTitle" hidden>Musical Charades</span>
+
     <nav class="mode-switch" aria-label="Mode switch">
       <button class="mode-btn active" data-mode="create">Create</button>
       <button class="mode-btn" data-mode="game">Game Mode</button>
     </nav>
+
+    <div class="game-timer" id="gameTimer" aria-label="Time remaining" hidden>1:00</div>
+    <div class="finish-vote" id="finishVote" hidden>
+      <button id="finishGameBtn" class="action-btn" type="button">Finish game</button>
+      <span class="finish-count" id="finishVoteCount">0/3</span>
+    </div>
   </header>
 
   <main class="workspace">
@@ -82,7 +90,9 @@
 
           <aside class="side-controls" aria-label="Tempo">
             <label for="speedSlider">Tempo</label>
-            <input type="range" id="speedSlider" orient="vertical" min="30" max="600" value="150">
+            <div class="slider-track">
+              <input type="range" id="speedSlider" orient="vertical" min="30" max="600" value="150">
+            </div>
             <input type="number" id="speedInput" min="30" max="600" value="150" aria-label="Tempo value">
           </aside>
         </div>
@@ -95,7 +105,10 @@
               <label for="asciiArea">Type or paste ASCII art. Each symbol becomes a note.</label>
               <textarea id="asciiArea" rows="8" spellcheck="false" placeholder="*   #&#10;  ~&#10;@      *"></textarea>
               <div class="ascii-actions">
-                <div class="symbol-mappings" id="symbolMappings"></div>
+                <div class="symbol-mappings-wrap">
+                  <p class="ascii-tip">Choose the instrument for your symbols</p>
+                  <div class="symbol-mappings" id="symbolMappings"></div>
+                </div>
                 <button class="action-btn primary" id="doneAsciiBtn" type="button">Done</button>
               </div>
             </div>
@@ -104,6 +117,10 @@
           <div class="chat-log" id="chatLog" hidden>
             <h4>Guesses</h4>
             <ul id="chatLogList"></ul>
+            <div class="chat-input" id="chatInput">
+              <input type="text" id="guessBarInput" placeholder="Type your guess..." maxlength="50" aria-label="Guess">
+              <button class="action-btn primary" id="guessBarBtn" type="button">Send</button>
+            </div>
           </div>
         </div>
       </div>
@@ -139,7 +156,7 @@
           <button class="action-btn" id="setNameBtn">Set name</button>
         </div>
 
-        <h3>Players <span class="player-count" id="playerCounter">0</span></h3>
+        <h3>Players <span class="player-count" id="playerCounter">0</span> / 10</h3>
         <ul class="player-list" id="playerList"></ul>
 
         <button class="action-btn primary" id="goToCustomizeBtn" hidden>Go to game</button>
@@ -155,6 +172,18 @@
         </div>
       </div>
 
+      <!-- End-of-game winners screen -->
+      <div class="game-placeholder podium-room" id="podiumRoom" hidden>
+        <p class="podium-kicker">Final results</p>
+        <h2>Top players</h2>
+        <button id="confettiBtn" class="action-btn primary" type="button">🎉 Run Confetti</button>
+        <div class="podium-standings" id="podiumStandings" aria-label="Final podium"></div>
+        <div class="podium-actions" id="podiumActions" hidden>
+          <button id="rematchBtn" class="action-btn primary" type="button">Rematch</button>
+          <button id="podiumBackBtn" class="action-btn" type="button">Go back</button>
+        </div>
+      </div>
+
       <!-- In-game guess box -->
       <div class="guess-section" id="guessSection" hidden>
         <input type="text" id="guessInput" placeholder="Type your guess..." maxlength="50" aria-label="Guess">
@@ -162,12 +191,6 @@
       </div>
     </section>
 
-    <!-- Bottom guessing bar for charades turns -->
-    <div class="guess-bar" id="guessBar" hidden>
-      <div class="guess-timer" id="guessTimer">1:00</div>
-      <input type="text" id="guessBarInput" placeholder="Type your guess..." maxlength="50" aria-label="Guess">
-      <button class="action-btn primary" id="guessBarBtn">Send guess</button>
-    </div>
   </main>
 
   <footer>
@@ -188,7 +211,10 @@
   <!-- Socket.IO client library. The server serves this file automatically at /socket.io/socket.io.js -->
   <script src="/socket.io/socket.io.js"></script>
 
-  <script src="script.js" defer></script>
+  <!-- Canvas Confetti for the end-of-game podium -->
+  <script src="./assets/vendor/canvas-confetti/dist/confetti.browser.js"></script>
+
+  <script src="script.js?v=2" defer></script>
 
   <!-- On-page error log so you can see JS errors without opening the console -->
   <div id="errorLog" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#8B2626; color:#fff; padding:12px; font-family:monospace; font-size:0.85rem; white-space:pre-wrap; z-index:100; max-height:200px; overflow:auto;"></div>

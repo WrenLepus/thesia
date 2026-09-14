@@ -48,6 +48,58 @@ body {
   z-index: 10;
 }
 
+.game-header-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--burgundy);
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.game-timer {
+  margin-left: auto;
+  min-width: 58px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-warm);
+  color: var(--burgundy);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.finish-vote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.finish-vote .action-btn {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.finish-vote .action-btn.pressed {
+  background: var(--burgundy);
+  border-color: var(--burgundy);
+  color: #fff;
+}
+
+.finish-count {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--burgundy);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2em;
+  text-align: center;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -313,21 +365,37 @@ body[data-tool="ascii"] #eraserGroup {
   align-items: stretch;
 }
 
+@media (min-width: 1240px) {
+  .toolbar,
+  .create-stage {
+    padding-left: 28px;
+  }
+}
+
 .side-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  width: 64px;
+  width: 48px;
   height: 360px;
-  padding: 16px 0;
+  padding: 16px 0 12px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 2px 8px var(--shadow);
   align-self: flex-start;
   flex-shrink: 0;
+}
+
+.slider-track {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .side-controls label {
@@ -339,8 +407,8 @@ body[data-tool="ascii"] #eraserGroup {
 }
 
 #speedSlider {
-  width: 32px;
-  flex: 1;
+  width: 24px;
+  height: 100%;
   min-height: 0;
   -webkit-appearance: slider-vertical;
   appearance: slider-vertical;
@@ -357,14 +425,25 @@ body[data-tool="ascii"] #eraserGroup {
   box-shadow: 0 4px 16px var(--shadow);
   overflow: hidden;
   min-height: 320px;
+  height: 360px;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
+/* In ASCII mode the stage grows to fit the editor + preview. */
+.stage:has(.ascii-input:not([hidden])) {
+  height: auto;
+}
+
+.stage:has(.ascii-input:not([hidden])) #drawCanvas {
+  height: 200px;
+  flex: none;
+}
+
 #drawCanvas {
   width: 100%;
-  height: 360px;
+  height: 100%;
   display: block;
   background: #F4ECD9;
   cursor: crosshair;
@@ -446,6 +525,93 @@ body[data-tool="ascii"] #eraserGroup {
   justify-content: center;
 }
 
+/* Kahoot-style end-of-game podium. The DOM order is second, first, third so
+   the winner is physically centred on the tallest step. */
+.podium-room {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.podium-kicker {
+  margin: 0;
+  color: var(--orange) !important;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.podium-standings {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  gap: 14px;
+  width: min(100%, 620px);
+  min-height: 255px;
+  padding-top: 20px;
+}
+
+.podium-player {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  max-width: 190px;
+  text-align: center;
+}
+
+.podium-rank {
+  margin-bottom: 8px;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.podium-name {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+}
+
+.podium-score {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.podium-step {
+  display: grid;
+  width: 100%;
+  place-items: center;
+  border-radius: 14px 14px 0 0;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  box-shadow: 0 -4px 14px var(--shadow);
+}
+
+.podium-player--1 .podium-rank { color: #B27A00; }
+.podium-player--1 .podium-step { height: 145px; background: #F0A000; }
+.podium-player--2 .podium-rank { color: #606A78; }
+.podium-player--2 .podium-step { height: 100px; background: #778391; }
+.podium-player--3 .podium-rank { color: #9A5A2A; }
+.podium-player--3 .podium-step { height: 72px; background: #B66A31; }
+
+#confettiBtn {
+  margin-bottom: 8px;
+}
+
+.podium-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .guess-section {
   display: flex;
   gap: 8px;
@@ -514,10 +680,50 @@ footer {
     font-size: 1.1rem;
   }
 
+  .game-header-title {
+    position: static;
+    transform: none;
+    margin-left: auto;
+    font-size: 0.9rem;
+  }
+
+  .game-timer {
+    margin-left: 0;
+    min-width: 52px;
+    padding: 6px 8px;
+    font-size: 0.9rem;
+  }
+
+  .finish-vote {
+    margin-left: 8px;
+  }
+
+  .finish-vote .action-btn {
+    padding: 5px 8px;
+    font-size: 0.75rem;
+  }
+
+  .finish-count {
+    font-size: 0.8rem;
+  }
+
   .mode-btn {
     padding: 7px 12px;
     font-size: 0.85rem;
   }
+
+  .podium-standings {
+    gap: 8px;
+    min-height: 220px;
+  }
+
+  .podium-step {
+    font-size: 1.5rem;
+  }
+
+  .podium-player--1 .podium-step { height: 125px; }
+  .podium-player--2 .podium-step { height: 88px; }
+  .podium-player--3 .podium-step { height: 64px; }
 
   .toolbar {
     flex-direction: column;
@@ -541,6 +747,12 @@ footer {
     align-self: auto;
   }
 
+  .slider-track {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+
   #speedSlider {
     width: 100%;
     height: auto;
@@ -549,7 +761,7 @@ footer {
     appearance: auto;
   }
 
-  #drawCanvas {
+  .stage {
     height: 280px;
   }
 }
@@ -784,11 +996,24 @@ footer {
   flex-wrap: wrap;
 }
 
+.symbol-mappings-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ascii-tip {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .symbol-mappings {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 10px;
-  flex: 1;
 }
 
 .symbol-mapping {
@@ -843,13 +1068,26 @@ footer {
 
 .hangman-blanks {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: clamp(1.5rem, 5vw, 2.5rem);
+  font-size: clamp(1.1rem, 3.2vw, 1.7rem);
   font-weight: 700;
-  letter-spacing: 0.08em;
   color: var(--burgundy);
   text-align: center;
-  line-height: 1.3;
+  line-height: 1.6;
   min-height: 1.4em;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  /* Flex items represent whole words, so a word never wraps by itself. */
+  gap: 1.15em clamp(3.5rem, 9vw, 6rem);
+}
+
+.hangman-blanks .blank-word {
+  display: inline-block;
+  flex: 0 0 auto;
+  padding: 0 0.15em;
+  white-space: nowrap;
+  word-spacing: 0.75em;
+  letter-spacing: 0.08em;
 }
 
 .hangman-blanks.revealed {
@@ -883,6 +1121,18 @@ footer {
   width: 100%;
   height: 220px;
   flex: none;
+}
+
+/* When the score panel is hidden (Create mode), collapse the left column
+   so the tempo control becomes a thin strip matching the keyboard height. */
+.left-column:has(.score-panel[hidden]) {
+  width: 48px;
+  align-items: center;
+}
+
+.left-column:has(.score-panel[hidden]) .side-controls {
+  width: 100%;
+  height: 360px;
 }
 
 .score-panel {
@@ -999,50 +1249,36 @@ footer {
   font-weight: 700;
 }
 
-.guess-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+.chat-input {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background: var(--panel);
+  gap: 8px;
+  padding: 10px 12px;
   border-top: 1px solid var(--border);
-  box-shadow: 0 -2px 12px var(--shadow);
-  z-index: 10;
+  background: var(--panel-warm);
 }
 
-.guess-timer {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--burgundy);
-  min-width: 48px;
-  text-align: center;
-}
-
-.guess-bar input {
+.chat-input input {
   flex: 1;
-  max-width: 420px;
-  padding: 10px 14px;
+  min-width: 0;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--panel-warm);
+  background: var(--panel);
   color: var(--text);
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
-.guess-bar input:focus {
+.chat-input input:focus {
   outline: none;
   border-color: var(--orange);
   box-shadow: 0 0 0 3px rgba(239, 105, 5, 0.12);
 }
 
-.guess-bar .action-btn {
+.chat-input .action-btn {
   white-space: nowrap;
+  padding: 8px 14px;
+  font-size: 0.9rem;
 }
 
 .action-btn:disabled,
@@ -1054,9 +1290,27 @@ footer {
   border-color: var(--border);
 }
 
-/* Make room for the fixed bottom guessing bar */
+/* ---- Game-mode-only overrides (must not affect Create mode) ---- */
+
+/* Hide the tempo control in game mode; tempo is locked to default in script.js. */
+.in-game .side-controls {
+  display: none;
+}
+
+/* Lock the scoreboard and chat log to the same height as the stage so they scroll internally. */
+.in-game .score-panel,
+.in-game .chat-log {
+  height: 360px;
+}
+
+/* In game mode, only the room-voted tool is available. */
+.in-game[data-game-tool="draw"] .tool-btn[data-tool="ascii"],
+.in-game[data-game-tool="ascii"] .tool-btn[data-tool="draw"] {
+  display: none;
+}
+
 .workspace {
-  padding-bottom: 80px;
+  padding-bottom: 24px;
 }
 
 @media (max-width: 640px) {
@@ -1071,7 +1325,7 @@ footer {
   }
 
   .left-column .side-controls {
-    width: 64px;
+    width: 48px;
     height: auto;
     flex: none;
   }
@@ -1087,15 +1341,11 @@ footer {
 
   .chat-log {
     width: 100%;
-    height: 160px;
+    height: 180px;
   }
 
-  .guess-bar {
-    padding: 10px 14px;
-    gap: 8px;
-  }
-
-  .guess-bar input {
-    min-width: 0;
+  .in-game .score-panel,
+  .in-game .chat-log {
+    height: 280px;
   }
 }

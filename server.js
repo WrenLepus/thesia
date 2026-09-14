@@ -8,6 +8,7 @@ const express = require('express');      // Web framework for serving static fil
 const http = require('http');            // Built-in HTTP server
 const path = require('path');            // Cross-platform file paths
 const { Server } = require('socket.io'); // Real-time WebSocket communication
+const CLASSICAL_SONGS = require('./music-pieces');
 
 const app = express();
 const server = http.createServer(app);
@@ -36,6 +37,9 @@ const PLAY_UNLOCK_TIME = 30;
 // How long the revealed answer lingers before the next turn starts, in seconds.
 const REVEAL_LINGER_TIME = 5;
 
+// Charades stays readable and the score panel usable with up to ten players.
+const MAX_PLAYERS = 10;
+
 // Maximum score for a correct guess and how many points are lost per second.
 const MAX_GUESS_SCORE = 500;
 const SCORE_LOSS_PER_SECOND = 10;
@@ -46,15 +50,6 @@ const MODES = ['Draw', 'ASCII'];
 
 // Round-limit options.
 const ROUND_OPTIONS = ['3 rounds', 'Unlimited'];
-
-// Classical music prompts used for every game (genre is locked to Classical).
-const CLASSICAL_SONGS = [
-  'Fur Elise - Beethoven', 'Canon in D - Pachelbel', 'Clair de Lune - Debussy',
-  'The Four Seasons: Spring - Vivaldi', 'Eine kleine Nachtmusik - Mozart',
-  'Moonlight Sonata - Beethoven', 'Ode to Joy - Beethoven', 'Swan Lake - Tchaikovsky',
-  'The Nutcracker - Tchaikovsky', 'Air on the G String - Bach', 'Symphony No. 5 - Beethoven',
-  'Hall of the Mountain King - Grieg'
-];
 
 // ------------------------------------------------------------------
 // 4. Helpers
@@ -83,6 +78,56 @@ function pickWinner(votes) {
 // Active (non-kicked) players in a room.
 function activePlayers(room) {
   return room.players.filter(p => !p.kicked);
+}
+
+function publicPlayers(room) {
+  return activePlayers(room).map(player => ({
+    id: player.id,
+    name: player.name,
+    score: room.scores?.[player.id] || 0
+  }));
+}
+
+// Remove a player from a room and keep the rotating drawer index pointing at
+// the correct next player. Returns { removed, wasDrawer }.
+function removePlayer(room, playerId) {
+  const index = room.players.findIndex(p => p.id === playerId);
+  if (index === -1) return { removed: false, wasDrawer: false };
+
+  const wasDrawer = room.currentDrawerId === playerId;
+  const wasBeforeDrawer = index < room.currentDrawerIndex;
+
+  room.players.splice(index, 1);
+
+  if (wasDrawer) {
+    // The next turn should start with whoever now occupies the removed slot,
+    // wrapping to the front when the last player left. endTurn() will then
+    // advance from this value to that player.
+    room.currentDrawerIndex = (index - 1 + room.players.length) % room.players.length;
+  } else if (wasBeforeDrawer) {
+    room.currentDrawerIndex--;
+  }
+
+  return { removed: true, wasDrawer };
+}
+
+function normalizeGuess(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function titleFromPrompt(prompt) {
+  const separatorIndex = String(prompt).lastIndexOf(' - ');
+  return (separatorIndex === -1 ? prompt : prompt.slice(0, separatorIndex)).trim();
+}
+
+function scoreForCorrectGuess(elapsedMilliseconds) {
+  const elapsedSeconds = Math.max(0, elapsedMilliseconds / 1000);
+  if (elapsedSeconds <= FULL_SCORE_WINDOW) return MAX_GUESS_SCORE;
+
+  // The first instant after the 10-second full-score window is in the first
+  // deduction second, so it is worth 490; each subsequent second loses 10.
+  const deductionSeconds = Math.ceil(elapsedSeconds - FULL_SCORE_WINDOW);
+  return Math.max(0, MAX_GUESS_SCORE - deductionSeconds * SCORE_LOSS_PER_SECOND);
 }
 
 // ------------------------------------------------------------------
@@ -169,10 +214,17 @@ function startGame(room) {
   room.currentPrompt = null;
   room.promptQueue = [];
   room.turnStartTime = null;
+  room.turnResolved = false;
 
   const players = activePlayers(room);
+  if (players.length < 2) {
+    room.phase = 'waiting';
+    io.to(room.hostId).emit('room-error', 'Need at least 2 players to start');
+    return;
+  }
   // Pick a random starting drawer; after that we rotate through the list.
   room.currentDrawerIndex = players.length ? Math.floor(Math.random() * players.length) : 0;
+  room.finishVotes = new Set();
 
   io.to(room.code).emit('customize-done', {
     choices: room.choices
@@ -215,17 +267,16 @@ function startTurn(room) {
   io.to(room.code).emit('state-update', { strokes: [], asciiText: '' });
 
   // Extract just the song title for guessing (composer is not required).
-  const title = room.currentPrompt.split(' - ')[0].trim();
+  const title = titleFromPrompt(room.currentPrompt);
   room.currentAnswerTitle = title;
   room.turnStartTime = Date.now();
+  room.turnResolved = false;
 
-  // Build a hangman-style blank pattern: single spaces between letters,
-  // wider gaps (four spaces) between words.
-  const blanks = title
-    .split('')
-    .map(ch => (ch === ' ' ? '    ' : '_ '))
-    .join('')
-    .trim();
+  // Build a hangman-style blank pattern: one string per word so the client
+  // can render larger gaps between words and wrap long titles onto two lines.
+  const titleWords = title.split(/\s+/).filter(w => w.length > 0);
+  const blankWords = titleWords.map(word => word.split('').map(() => '_').join(' '));
+  const blanks = blankWords.join('     ');
 
   // Public turn announcement (answer omitted; guessers see blanks).
   io.to(room.code).emit('turn-started', {
@@ -235,11 +286,26 @@ function startTurn(room) {
     totalRounds: room.choices.totalRounds || null,
     drawCountLeft,
     blanks,
-    answerLength: title.length
+    blankWords,
+    answerLength: title.length,
+    duration: TURN_DURATION,
+    // Send the current leaderboard so the client can render the drawer icon
+    // immediately without waiting for the separate player-list broadcast.
+    players: publicPlayers(room),
+    finishVotes: Array.from(room.finishVotes)
   });
 
   // Private prompt sent only to the drawer.
   io.to(drawer.id).emit('your-prompt', { prompt: room.currentPrompt });
+
+  // Broadcast the updated player list so the scoreboard shows the new drawer icon.
+  broadcastPlayers(room);
+
+  // Sync the current "finish game" vote state (unlimited mode only).
+  io.to(room.code).emit('finish-votes-update', {
+    votes: Array.from(room.finishVotes),
+    total: activePlayers(room).length
+  });
 
   // Start the turn timer. Play unlocks halfway through; turn ends at timeout.
   startTurnTimer(room);
@@ -255,6 +321,7 @@ function startTurnTimer(room) {
   }, PLAY_UNLOCK_TIME * 1000);
 
   room.turnTimer = setTimeout(() => {
+    room.turnResolved = true;
     // Time is up: reveal the answer, then move to the next turn automatically.
     io.to(room.code).emit('answer-revealed', { answer: room.currentAnswerTitle || '' });
     room.turnTimer = setTimeout(() => endTurn(room), REVEAL_LINGER_TIME * 1000);
@@ -273,8 +340,22 @@ function clearTurnTimer(room) {
   room.playUnlocked = false;
 }
 
+function finishGame(room) {
+  clearTurnTimer(room);
+  room.currentDrawerId = null;
+  room.finishVotes = new Set();
+  broadcastPlayers(room);
+  io.to(room.code).emit('game-over', {
+    drawCounts: room.drawCounts,
+    scores: room.scores,
+    players: publicPlayers(room)
+  });
+  room.phase = 'finished';
+}
+
 function endTurn(room) {
   clearTurnTimer(room);
+  console.log(`[endTurn] room=${room.code} advancing drawer index`);
 
   const players = activePlayers(room);
   if (players.length === 0) return;
@@ -285,10 +366,15 @@ function endTurn(room) {
   if (room.choices.totalRounds) {
     const allDone = players.every(p => (room.drawCounts[p.id] || 0) >= room.choices.totalRounds);
     if (allDone) {
-      io.to(room.code).emit('game-over', { drawCounts: room.drawCounts, scores: room.scores });
-      room.phase = 'finished';
+      finishGame(room);
       return;
     }
+  }
+
+  // A charades turn needs at least one guesser. End early if too many left.
+  if (players.length < 2) {
+    finishGame(room);
+    return;
   }
 
   startTurn(room);
@@ -300,11 +386,7 @@ function endTurn(room) {
 function broadcastPlayers(room) {
   const players = activePlayers(room);
   io.to(room.code).emit('player-list', {
-    players: players.map(p => ({
-      id: p.id,
-      name: p.name,
-      score: room.scores?.[p.id] || 0
-    })),
+    players: publicPlayers(room),
     playerCount: players.length,
     hostId: room.hostId,
     drawerId: room.currentDrawerId
@@ -345,9 +427,11 @@ io.on('connection', (socket) => {
       drawCounts: {},
       scores: {},
       turnStartTime: null,
+      turnResolved: false,
       turnTimer: null,
       playUnlockTimer: null,
-      playUnlocked: false
+      playUnlocked: false,
+      finishVotes: new Set()
     };
 
     socket.join(code);
@@ -372,16 +456,25 @@ io.on('connection', (socket) => {
       return;
     }
 
+    if (room.phase !== 'waiting') {
+      socket.emit('room-error', 'This game has already started');
+      return;
+    }
+
     // If this socket is rejoining, update its entry instead of adding a duplicate.
     const existing = room.players.find(p => p.id === socket.id);
     if (!existing) {
+      if (activePlayers(room).length >= MAX_PLAYERS) {
+        socket.emit('room-error', `This room is full (maximum ${MAX_PLAYERS} players)`);
+        return;
+      }
       room.players.push({ id: socket.id, name: '', kicked: false });
     }
 
-    socket.join(code);
-    socket.emit('joined-room', { code, role: 'player', strokes: room.strokes, asciiText: room.asciiText });
+    socket.join(room.code);
+    socket.emit('joined-room', { code: room.code, role: 'player', strokes: room.strokes, asciiText: room.asciiText });
     broadcastPlayers(room);
-    console.log(`Player ${socket.id} joined room ${code}`);
+    console.log(`Player ${socket.id} joined room ${room.code}`);
   });
 
   // --------------------------------------------------------------
@@ -418,17 +511,29 @@ io.on('connection', (socket) => {
     const room = rooms[code?.toUpperCase?.()];
     if (!room || room.hostId !== socket.id) return; // only host can kick
 
-    const player = room.players.find(p => p.id === playerId);
-    if (player) {
-      player.kicked = true;
-      room.kickedIds.add(playerId);
-      const target = io.sockets.sockets.get(playerId);
-      if (target) {
-        target.leave(code);
-        target.emit('kicked');
-      }
-      broadcastPlayers(room);
-      console.log(`Host kicked player ${playerId} from room ${code}`);
+    const { removed, wasDrawer } = removePlayer(room, playerId);
+    if (!removed) return;
+
+    room.kickedIds.add(playerId);
+    const target = io.sockets.sockets.get(playerId);
+    if (target) {
+      target.leave(code);
+      target.emit('kicked');
+    }
+
+    // Their finish vote, if any, leaves with them.
+    room.finishVotes.delete(playerId);
+    broadcastPlayers(room);
+    console.log(`Host kicked player ${playerId} from room ${code}`);
+
+    // If the drawer was removed, advance so the game doesn't stall.
+    if (room.phase === 'playing' && wasDrawer) {
+      endTurn(room);
+    }
+
+    // A departure may change the finish threshold; end the game if consensus remains.
+    if (room.phase === 'playing' && room.finishVotes.size >= activePlayers(room).length) {
+      finishGame(room);
     }
   });
 
@@ -446,6 +551,45 @@ io.on('connection', (socket) => {
       return;
     }
 
+    advanceCustomization(room);
+  });
+
+  // --------------------------------------------------------------
+  // Host starts a rematch after the game ends
+  // --------------------------------------------------------------
+  socket.on('rematch', (code) => {
+    const room = rooms[code?.toUpperCase?.()];
+    if (!room || room.hostId !== socket.id) return;
+    if (room.phase !== 'finished') return;
+
+    // Need at least two active players to rematch.
+    if (activePlayers(room).length < 2) {
+      socket.emit('room-error', 'Need at least 2 players to rematch');
+      return;
+    }
+
+    // Reset turn/game state while preserving players and kicked list.
+    room.phase = 'waiting';
+    room.choices = {};
+    room.currentChoice = null;
+    room.strokes = [];
+    room.asciiText = '';
+    room.scores = {};
+    room.drawCounts = {};
+    room.currentPrompt = null;
+    room.currentAnswerTitle = null;
+    room.promptQueue = [];
+    room.currentDrawerId = null;
+    room.currentDrawerIndex = 0;
+    room.currentRound = 0;
+    room.turnStartTime = null;
+    room.turnResolved = false;
+    room.playUnlocked = false;
+    room.finishVotes = new Set();
+    clearTurnTimer(room);
+
+    // Tell everyone the rematch is starting, then run the customization vote.
+    io.to(room.code).emit('rematch-started', { code: room.code });
     advanceCustomization(room);
   });
 
@@ -475,20 +619,6 @@ io.on('connection', (socket) => {
   });
 
   // --------------------------------------------------------------
-  // Drawer/host signals the current drawing is finished
-  // --------------------------------------------------------------
-  socket.on('done-drawing', (code) => {
-    const room = rooms[code?.toUpperCase?.()];
-    if (!room || room.phase !== 'playing') return;
-
-    const isDrawer = room.currentDrawerId === socket.id;
-    const isHost = room.hostId === socket.id;
-    if (!isDrawer && !isHost) return;
-
-    endTurn(room);
-  });
-
-  // --------------------------------------------------------------
   // In-game drawing/ASCII state sync
   // --------------------------------------------------------------
   socket.on('state-update', ({ code, strokes, asciiText }) => {
@@ -508,22 +638,30 @@ io.on('connection', (socket) => {
   socket.on('guess', ({ code, text }) => {
     const room = rooms[code?.toUpperCase?.()];
     if (!room || room.phase !== 'playing') return;
+    if (room.turnResolved) {
+      console.log(`[guess] rejected: room=${room.code} player=${socket.id} guess="${text}" (turn already resolved)`);
+      return;
+    }
+    // The drawer receives the prompt, so only guessers may earn points.
+    if (room.currentDrawerId === socket.id) return;
 
     const player = room.players.find(p => p.id === socket.id);
+    if (!player || player.kicked) return;
     const playerName = player?.name || 'Player';
     const guess = String(text || '').trim();
     if (!guess) return;
 
     const answer = room.currentAnswerTitle || '';
-    // Compare ignoring case and extra whitespace; composer is not required.
-    const isCorrect = answer.localeCompare(guess, undefined, { sensitivity: 'base' }) === 0 ||
-      answer.toLowerCase() === guess.toLowerCase();
+    // Compare case-insensitively while treating repeated whitespace as one space.
+    const isCorrect = normalizeGuess(answer) === normalizeGuess(guess);
 
     if (isCorrect) {
-      const elapsedSeconds = Math.max(0, (Date.now() - (room.turnStartTime || Date.now())) / 1000);
-      const secondsPastWindow = Math.max(0, elapsedSeconds - FULL_SCORE_WINDOW);
-      const points = Math.max(0, MAX_GUESS_SCORE - Math.floor(secondsPastWindow) * SCORE_LOSS_PER_SECOND);
+      // Mark this turn resolved before broadcasting, so simultaneous correct
+      // guesses cannot both receive a score.
+      room.turnResolved = true;
+      const points = scoreForCorrectGuess(Date.now() - (room.turnStartTime || Date.now()));
       room.scores[socket.id] = (room.scores[socket.id] || 0) + points;
+      console.log(`[guess] correct: room=${room.code} player=${socket.id} guess="${guess}" +${points}pts`);
 
       io.to(room.code).emit('guess-result', {
         playerId: socket.id,
@@ -539,12 +677,63 @@ io.on('connection', (socket) => {
       room.turnTimer = setTimeout(() => endTurn(room), REVEAL_LINGER_TIME * 1000);
       broadcastPlayers(room);
     } else {
+      console.log(`[guess] wrong: room=${room.code} player=${socket.id} guess="${guess}"`);
       io.to(room.code).emit('guess-result', {
         playerId: socket.id,
         playerName,
         guess,
         correct: false
       });
+    }
+  });
+
+  // --------------------------------------------------------------
+  // Vote to finish an unlimited game
+  // --------------------------------------------------------------
+  socket.on('vote-finish', ({ code, finish }, ack) => {
+    const room = rooms[code?.toUpperCase?.()];
+    if (!room) {
+      console.log(`[vote-finish] rejected: room not found for code=${code}`);
+      if (typeof ack === 'function') ack({ ok: false, reason: 'room-not-found' });
+      return;
+    }
+    if (room.phase !== 'playing') {
+      console.log(`[vote-finish] rejected: room=${room.code} phase=${room.phase}`);
+      if (typeof ack === 'function') ack({ ok: false, reason: 'not-playing', phase: room.phase });
+      return;
+    }
+
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player || player.kicked) {
+      console.log(`[vote-finish] rejected: room=${room.code} player=${socket.id} not found or kicked`);
+      if (typeof ack === 'function') ack({ ok: false, reason: 'player-not-found' });
+      return;
+    }
+
+    // Defensive: old rooms or edge cases may not have the set.
+    if (!room.finishVotes) room.finishVotes = new Set();
+
+    if (finish) {
+      room.finishVotes.add(socket.id);
+    } else {
+      room.finishVotes.delete(socket.id);
+    }
+
+    const players = activePlayers(room);
+    console.log(`[finish-vote] room=${room.code} voter=${socket.id} finish=${finish} votes=${room.finishVotes.size}/${players.length}`);
+    io.to(room.code).emit('finish-votes-update', {
+      votes: Array.from(room.finishVotes),
+      total: players.length
+    });
+
+    if (typeof ack === 'function') {
+      ack({ ok: true, votes: room.finishVotes.size, total: players.length });
+    }
+
+    // If every active player wants to finish, end the game immediately.
+    if (room.finishVotes.size >= players.length) {
+      console.log(`[finish-vote] consensus reached in room=${room.code}; ending game`);
+      finishGame(room);
     }
   });
 
@@ -556,34 +745,38 @@ io.on('connection', (socket) => {
 
     for (const code in rooms) {
       const room = rooms[code];
-      const index = room.players.findIndex(p => p.id === socket.id);
+      const { removed, wasDrawer } = removePlayer(room, socket.id);
+      if (!removed) continue;
 
-      if (index !== -1) {
-        room.players.splice(index, 1);
+      // If the host leaves, assign a new host or delete the room.
+      if (socket.id === room.hostId) {
+        const nextHost = room.players.find(p => !p.kicked);
+        if (nextHost) {
+          room.hostId = nextHost.id;
+          io.to(nextHost.id).emit('became-host');
+        } else {
+          delete rooms[code];
+          console.log(`Room ${code} deleted (host left)`);
+          continue;
+        }
+      }
 
-        // If the host leaves, assign a new host or delete the room.
-        if (socket.id === room.hostId) {
-          const nextHost = room.players.find(p => !p.kicked);
-          if (nextHost) {
-            room.hostId = nextHost.id;
-            io.to(nextHost.id).emit('became-host');
-          } else {
-            delete rooms[code];
-            console.log(`Room ${code} deleted (host left)`);
-            continue;
-          }
+      if (activePlayers(room).length === 0) {
+        delete rooms[code];
+        console.log(`Room ${code} deleted (empty)`);
+      } else {
+        // Their finish vote, if any, leaves with them.
+        room.finishVotes.delete(socket.id);
+        broadcastPlayers(room);
+
+        // If the drawer left mid-game, skip to the next turn so the game doesn't stall.
+        if (room.phase === 'playing' && wasDrawer) {
+          endTurn(room);
         }
 
-        if (activePlayers(room).length === 0) {
-          delete rooms[code];
-          console.log(`Room ${code} deleted (empty)`);
-        } else {
-          broadcastPlayers(room);
-
-          // If the drawer left mid-game, skip to the next turn so the game doesn't stall.
-          if (room.phase === 'playing' && room.currentDrawerId === socket.id) {
-            endTurn(room);
-          }
+        // A departure may change the finish threshold; end the game if consensus remains.
+        if (room.phase === 'playing' && room.finishVotes.size >= activePlayers(room).length) {
+          finishGame(room);
         }
       }
     }

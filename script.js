@@ -5,6 +5,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const gamePanel = document.getElementById('gamePanel');
   const soundbankStatus = document.getElementById('soundbankStatus');
   const modeSubtitle = document.getElementById('modeSubtitle');
+  const modeSwitch = document.querySelector('.mode-switch');
+  const gameHeaderTitle = document.getElementById('gameHeaderTitle');
+  const gameTimer = document.getElementById('gameTimer');
+
+  function setGameHeader(isInRoom) {
+    // A charades turn reuses the creation canvas, but it remains a game.
+    // Hiding the switch prevents an accidental exit from an active room.
+    if (modeSwitch) modeSwitch.hidden = isInRoom;
+    if (gameHeaderTitle) gameHeaderTitle.hidden = !isInRoom;
+    if (gameTimer) gameTimer.hidden = !isInRoom;
+    document.body.classList.toggle('in-game', isInRoom);
+    if (!isInRoom) document.body.removeAttribute('data-game-tool');
+  }
 
   function setMode(mode) {
     document.body.setAttribute('data-mode', mode);
@@ -22,14 +35,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- Fallback synth map (used while the SF2 soundbank loads or if it fails) ----
   const FALLBACK_INSTRUMENTS = {
-    '#E81B1B': { name: 'Violin', type: 'sawtooth',  attack: 0.05, decay: 0.10, sustain: 0.60, release: 0.40 },
-    '#F39C12': { name: 'Trumpet', type: 'square',    attack: 0.02, decay: 0.10, sustain: 0.70, release: 0.30 },
-    '#F1C40F': { name: 'Piano', type: 'triangle',  attack: 0.005, decay: 0.20, sustain: 0.10, release: 0.30 },
-    '#2ECC71': { name: 'Flute', type: 'sine',      attack: 0.05, decay: 0.10, sustain: 0.60, release: 0.30 },
-    '#1ABC9C': { name: 'Harp', type: 'triangle',  attack: 0.005, decay: 0.30, sustain: 0.10, release: 0.60 },
-    '#3498DB': { name: 'Cello', type: 'sawtooth',  attack: 0.08, decay: 0.15, sustain: 0.70, release: 0.50 },
-    '#9B59B6': { name: 'Clarinet', type: 'square',    attack: 0.05, decay: 0.10, sustain: 0.60, release: 0.30 },
-    '#E91E63': { name: 'Synth', type: 'sawtooth',  attack: 0.01, decay: 0.10, sustain: 0.50, release: 0.40 }
+    '#E81B1B': { name: 'Violin', emoji: '🎻', type: 'sawtooth',  attack: 0.05, decay: 0.10, sustain: 0.60, release: 0.40 },
+    '#F39C12': { name: 'Trumpet', emoji: '🎺', type: 'square',    attack: 0.02, decay: 0.10, sustain: 0.70, release: 0.30 },
+    '#F1C40F': { name: 'Piano', emoji: '🎹', type: 'triangle',  attack: 0.005, decay: 0.20, sustain: 0.10, release: 0.30 },
+    '#2ECC71': { name: 'Flute', emoji: '🪈', type: 'sine',      attack: 0.05, decay: 0.10, sustain: 0.60, release: 0.30 },
+    '#1ABC9C': { name: 'Harp', emoji: '🎵', type: 'triangle',  attack: 0.005, decay: 0.30, sustain: 0.10, release: 0.60 },
+    '#3498DB': { name: 'Cello', emoji: '🎻', type: 'sawtooth',  attack: 0.08, decay: 0.15, sustain: 0.70, release: 0.50 },
+    '#9B59B6': { name: 'Clarinet', emoji: '🎷', type: 'square',    attack: 0.05, decay: 0.10, sustain: 0.60, release: 0.30 },
+    '#E91E63': { name: 'Synth', emoji: '🎛️', type: 'sawtooth',  attack: 0.01, decay: 0.10, sustain: 0.50, release: 0.40 }
   };
 
   const PALETTE_COLORS = Object.keys(FALLBACK_INSTRUMENTS);
@@ -113,7 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const fb = FALLBACK_INSTRUMENTS[color];
       const inst = sb || fb;
       if (inst) {
-        swatch.title = `${inst.name}${soundbankReady && !FORCE_SYNTH_COLORS.has(color) ? ' (SF2)' : ''}`;
+        const emoji = inst.emoji || '●';
+        swatch.title = `${emoji} ${inst.name}${soundbankReady && !FORCE_SYNTH_COLORS.has(color) ? ' (SF2)' : ''}`;
       }
     });
   }
@@ -835,7 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return PALETTE_COLORS.map(color => {
       const inst = FORCE_SYNTH_COLORS.has(color) ? FALLBACK_INSTRUMENTS[color] : (soundbankManifest?.instruments[color] || FALLBACK_INSTRUMENTS[color]);
       const selected = color === selectedColor ? ' selected' : '';
-      return `<option value="${color}"${selected}><span style="color:${color}">■</span> ${inst.name}</option>`;
+      const emoji = inst.emoji || '●';
+      return `<option value="${color}"${selected}>${emoji} ${inst.name}</option>`;
     }).join('');
   }
 
@@ -1070,10 +1085,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const guessSection = document.getElementById('guessSection');
   const guessInput = document.getElementById('guessInput');
   const sendGuessBtn = document.getElementById('sendGuessBtn');
-  const guessBar = document.getElementById('guessBar');
   const guessBarInput = document.getElementById('guessBarInput');
   const guessBarBtn = document.getElementById('guessBarBtn');
-  const guessTimer = document.getElementById('guessTimer');
+  const chatInput = document.getElementById('chatInput');
   const hangmanSection = document.getElementById('hangmanSection');
   const hangmanBlanks = document.getElementById('hangmanBlanks');
   const chatLog = document.getElementById('chatLog');
@@ -1096,6 +1110,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const choiceCards = document.getElementById('choiceCards');
   const choiceResult = document.getElementById('choiceResult');
   const chosenCard = document.getElementById('chosenCard');
+  const podiumRoom = document.getElementById('podiumRoom');
+  const podiumStandings = document.getElementById('podiumStandings');
+  const confettiBtn = document.getElementById('confettiBtn');
+  const podiumActions = document.getElementById('podiumActions');
+  const rematchBtn = document.getElementById('rematchBtn');
+  const podiumBackBtn = document.getElementById('podiumBackBtn');
+  const finishVote = document.getElementById('finishVote');
+  const finishGameBtn = document.getElementById('finishGameBtn');
+  const finishVoteCount = document.getElementById('finishVoteCount');
 
   // ---- Classical charades state and UI ----
   let currentDrawerId = null;
@@ -1107,6 +1130,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let turnTimerInterval = null;
   let playUnlocked = false;
   let inTurn = false; // true only during an active charades turn (locks Play)
+  let isUnlimited = false; // true when the room is playing unlimited rounds
+  let lastPlayers = []; // most recent player list from the server
+  let socketHasConnected = socket.connected;
+  let podiumTimer = null;
 
   // Initialise the create-mode tools now that all state they close over is declared.
   setTool('draw');
@@ -1141,24 +1168,6 @@ document.addEventListener('DOMContentLoaded', () => {
   drawerPrompt.style.cssText = 'width:100%;max-width:720px;margin:0 auto 12px;padding:12px 16px;background:var(--panel-warm);border:1px solid var(--border);border-radius:12px;font-weight:700;text-align:center;color:var(--burgundy);';
   if (createPanel) createPanel.insertBefore(drawerPrompt, createPanel.firstChild);
 
-  // "Done drawing" button, only visible to the drawer.
-  const doneDrawingBtn = document.createElement('button');
-  doneDrawingBtn.id = 'doneDrawingBtn';
-  doneDrawingBtn.type = 'button';
-  doneDrawingBtn.className = 'action-btn primary';
-  doneDrawingBtn.textContent = 'Done drawing';
-  doneDrawingBtn.hidden = true;
-  doneDrawingBtn.addEventListener('click', () => {
-    if (roomCode) socket.emit('done-drawing', roomCode);
-  });
-  const toolbar = document.querySelector('#createPanel .toolbar');
-  if (toolbar) {
-    const doneGroup = document.createElement('div');
-    doneGroup.className = 'tool-group';
-    doneGroup.appendChild(doneDrawingBtn);
-    toolbar.appendChild(doneGroup);
-  }
-
   function setVisible(el, visible) {
     if (!el) return;
     // Some browsers need the attribute removed explicitly for elements that were
@@ -1173,24 +1182,26 @@ document.addEventListener('DOMContentLoaded', () => {
     setVisible(gameLobby, phase === 'lobby');
     setVisible(waitingRoom, phase === 'waiting');
     setVisible(customizeRoom, phase === 'customize');
+    setVisible(podiumRoom, phase === 'podium');
     setVisible(guessSection, false);
     if (phase === 'play') {
       // During a turn hide the logo/title and show the charades UI.
       setVisible(gameLobby, false);
       setVisible(waitingRoom, false);
       setVisible(customizeRoom, false);
+      setVisible(podiumRoom, false);
       if (pageTitle) setVisible(pageTitle, false);
-      if (hangmanSection) setVisible(hangmanSection, true);
+      // The drawer already knows the answer, so they only see their prompt.
+      if (hangmanSection) setVisible(hangmanSection, !amDrawing);
       if (chatLog) setVisible(chatLog, true);
       if (scorePanel) setVisible(scorePanel, true);
-      // The drawer doesn't need the bottom guess bar.
-      if (guessBar) setVisible(guessBar, !amDrawing);
+      // The input lives inside the chat log; only guessers need it.
+      if (chatInput) chatInput.hidden = amDrawing;
     } else {
       if (pageTitle) setVisible(pageTitle, true);
       if (hangmanSection) setVisible(hangmanSection, false);
       if (chatLog) setVisible(chatLog, false);
       if (scorePanel) setVisible(scorePanel, false);
-      if (guessBar) setVisible(guessBar, false);
     }
   }
 
@@ -1207,10 +1218,11 @@ document.addEventListener('DOMContentLoaded', () => {
     turnTimeRemaining = 0;
     playUnlocked = false;
     inTurn = false;
+    isUnlimited = false;
     clearInterval(timerInterval);
     clearInterval(turnTimerInterval);
+    clearTimeout(podiumTimer);
     if (drawerPrompt) drawerPrompt.hidden = true;
-    if (doneDrawingBtn) doneDrawingBtn.hidden = true;
     if (playerList) playerList.innerHTML = '';
     if (scoreList) scoreList.innerHTML = '';
     if (playerCounter) playerCounter.textContent = '0';
@@ -1219,9 +1231,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (choiceResult) choiceResult.hidden = true;
     if (gameStatus) setVisible(gameStatus, false);
     if (chatLogList) chatLogList.innerHTML = '';
+    if (podiumStandings) podiumStandings.replaceChildren();
+    if (finishVote) setVisible(finishVote, false);
+    lastPlayers = [];
+    setGameHeader(false);
     setPlayUnlocked(false);
     setGamePhase('lobby');
   }
+
+  // Rooms live in server memory. If that server restarts, keep clients from
+  // remaining on a stale board whose guesses can no longer be scored.
+  socket.on('connect', () => {
+    if (socketHasConnected && roomCode) {
+      resetRoomUI();
+      setMode('game');
+      setRoomStatus('The game server restarted. Create or join a room to continue.', { error: true });
+    }
+    socketHasConnected = true;
+  });
 
   function formatTime(seconds) {
     const s = Math.max(0, Math.ceil(seconds));
@@ -1242,17 +1269,24 @@ document.addEventListener('DOMContentLoaded', () => {
     clearInterval(turnTimerInterval);
     turnTimeRemaining = seconds;
     setPlayUnlocked(false);
-    if (guessTimer) guessTimer.textContent = formatTime(turnTimeRemaining);
+    if (gameTimer) gameTimer.textContent = formatTime(turnTimeRemaining);
     turnTimerInterval = setInterval(() => {
       turnTimeRemaining--;
-      if (guessTimer) guessTimer.textContent = formatTime(turnTimeRemaining);
+      if (gameTimer) gameTimer.textContent = formatTime(turnTimeRemaining);
       if (turnTimeRemaining <= 0) clearInterval(turnTimerInterval);
     }, 1000);
   }
 
   function revealAnswer(answer) {
     if (hangmanBlanks) {
-      hangmanBlanks.textContent = answer.split('').join(' ');
+      const words = answer.split(' ').filter(w => w.length > 0);
+      hangmanBlanks.replaceChildren();
+      words.forEach(word => {
+        const wordEl = document.createElement('span');
+        wordEl.className = 'blank-word';
+        wordEl.textContent = word.split('').join(' ');
+        hangmanBlanks.appendChild(wordEl);
+      });
       hangmanBlanks.classList.add('revealed');
     }
   }
@@ -1329,24 +1363,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Render the left-hand score table as a leaderboard: highest score first,
-   * with a pencil icon next to the current drawer.
+   * Render the left-hand score table as a leaderboard: highest score first.
+   * The current drawer gets a pencil icon, guessers get a question mark, and
+   * the local player sees "You" instead of their name.
    */
   function renderScoreList(players, drawerId) {
     if (!scoreList) return;
     scoreList.innerHTML = '';
-    const sorted = [...players].sort((a, b) => b.score - a.score);
+    const sorted = [...players].sort((a, b) => (b.score || 0) - (a.score || 0));
     for (const player of sorted) {
       const li = document.createElement('li');
 
       const iconSpan = document.createElement('span');
       iconSpan.className = 'drawer-icon';
-      iconSpan.textContent = player.id === drawerId ? '✏️' : '';
+      iconSpan.textContent = player.id === drawerId
+        ? String.fromCodePoint(0x270F, 0xFE0F)
+        : String.fromCodePoint(0x2753);
+      iconSpan.title = player.id === drawerId ? 'Drawer' : 'Guesser';
       li.appendChild(iconSpan);
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'score-name';
-      nameSpan.textContent = player.name || 'Player';
+      nameSpan.textContent = player.id === socket.id ? 'You' : (player.name || 'Player');
       li.appendChild(nameSpan);
 
       const scoreSpan = document.createElement('span');
@@ -1356,6 +1394,72 @@ document.addEventListener('DOMContentLoaded', () => {
 
       scoreList.appendChild(li);
     }
+  }
+
+  function updateFinishVoteUI(votes, total) {
+    if (finishVoteCount) {
+      finishVoteCount.textContent = `${votes.length}/${Math.max(1, total)}`;
+    }
+    if (finishGameBtn) {
+      const hasVoted = votes.includes(socket.id);
+      finishGameBtn.classList.toggle('pressed', hasVoted);
+      finishGameBtn.setAttribute('aria-pressed', hasVoted ? 'true' : 'false');
+    }
+  }
+
+  function renderPodium(players) {
+    if (!podiumStandings) return;
+    podiumStandings.replaceChildren();
+
+    const topThree = [...players]
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, 3);
+    const displayOrder = [1, 0, 2]; // second, first, third: Kahoot-style podium
+
+    displayOrder.forEach(index => {
+      const player = topThree[index];
+      if (!player) return;
+
+      const rank = index + 1;
+      const card = document.createElement('article');
+      card.className = `podium-player podium-player--${rank}`;
+
+      const rankEl = document.createElement('span');
+      rankEl.className = 'podium-rank';
+      rankEl.textContent = `${rank}${rank === 1 ? 'st' : rank === 2 ? 'nd' : 'rd'}`;
+
+      const nameEl = document.createElement('strong');
+      nameEl.className = 'podium-name';
+      // Results use the player's actual display name, including for the local player.
+      nameEl.textContent = player.name || 'Player';
+
+      const scoreEl = document.createElement('span');
+      scoreEl.className = 'podium-score';
+      scoreEl.textContent = `${player.score || 0} pts`;
+
+      const stepEl = document.createElement('div');
+      stepEl.className = 'podium-step';
+      stepEl.textContent = String(rank);
+
+      card.append(rankEl, nameEl, scoreEl, stepEl);
+      podiumStandings.appendChild(card);
+    });
+  }
+
+  function fireConfetti() {
+    if (typeof confetti !== 'function') return;
+    const count = 200;
+    const defaults = { origin: { y: 0.7 } };
+
+    function fire(particleRatio, opts) {
+      confetti(Object.assign({}, defaults, opts, { particleCount: Math.floor(count * particleRatio) }));
+    }
+
+    fire(0.25, { spread: 26, startVelocity: 55 });
+    fire(0.2, { spread: 60 });
+    fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+    fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+    fire(0.1, { spread: 120, startVelocity: 45 });
   }
 
   function startChoiceTimer(seconds) {
@@ -1435,9 +1539,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentChoiceType = null;
     amDrawing = false;
     if (drawerPrompt) drawerPrompt.hidden = true;
-    if (doneDrawingBtn) doneDrawingBtn.hidden = true;
     // Remember whether the room chose Draw or ASCII for the drawer's turn.
     chosenMode = (choices.mode || '').toLowerCase().includes('ascii') ? 'ascii' : 'draw';
+    document.body.setAttribute('data-game-tool', chosenMode);
     setGamePhase('waiting');
     setRoomStatus(`Ready! ${choices.mode} • ${choices.rounds}`);
     // Voting is over, hide the host's "Go to game" button.
@@ -1475,6 +1579,49 @@ document.addEventListener('DOMContentLoaded', () => {
   if (goToCustomizeBtn) {
     goToCustomizeBtn.addEventListener('click', () => {
       if (roomCode) socket.emit('go-to-customize', roomCode);
+    });
+  }
+
+  // Podium: run confetti on demand.
+  if (confettiBtn) {
+    confettiBtn.addEventListener('click', fireConfetti);
+  }
+
+  // Podium: host starts a rematch; everyone else sees the button disabled.
+  if (rematchBtn) {
+    rematchBtn.addEventListener('click', () => {
+      if (!roomCode) return;
+      if (myRole !== 'host') {
+        setRoomStatus('Only the host can start a rematch.', { error: true });
+        return;
+      }
+      socket.emit('rematch', roomCode);
+    });
+  }
+
+  // Podium: go back to the Game Mode lobby.
+  if (podiumBackBtn) {
+    podiumBackBtn.addEventListener('click', () => {
+      resetRoomUI();
+      setMode('game');
+    });
+  }
+
+  // Unlimited mode: toggle a vote to finish the game.
+  if (finishGameBtn) {
+    finishGameBtn.addEventListener('click', () => {
+      if (!roomCode || !isUnlimited) {
+        console.log('[finishGameBtn] ignored: no room or not unlimited', { roomCode, isUnlimited });
+        return;
+      }
+      const wantsFinish = !finishGameBtn.classList.contains('pressed');
+      // Optimistically toggle the pressed state so the button feels responsive.
+      // The authoritative count comes back from the server on finish-votes-update.
+      finishGameBtn.classList.toggle('pressed', wantsFinish);
+      console.log('[finishGameBtn] emitting vote-finish', { roomCode, finish: wantsFinish });
+      socket.emit('vote-finish', { code: roomCode, finish: wantsFinish }, (response) => {
+        console.log('[finishGameBtn] server ack', response);
+      });
     });
   }
 
@@ -1523,7 +1670,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Updated player list from the server.
-  socket.on('player-list', ({ players, hostId, drawerId }) => {
+  socket.on('player-list', ({ players = [], hostId, drawerId }) => {
+    lastPlayers = players;
     renderPlayerList(players, hostId);
     renderScoreList(players, drawerId);
   });
@@ -1555,14 +1703,59 @@ document.addEventListener('DOMContentLoaded', () => {
   // All customization votes are done.
   socket.on('customize-done', onCustomizeDone);
 
+  // Host started a rematch: reset local game state and wait for the new vote.
+  socket.on('rematch-started', () => {
+    amDrawing = false;
+    inTurn = false;
+    isUnlimited = false;
+    currentDrawerId = null;
+    currentRound = 0;
+    totalRounds = 0;
+    playUnlocked = false;
+    clearInterval(turnTimerInterval);
+    clearTimeout(podiumTimer);
+    if (drawerPrompt) setVisible(drawerPrompt, false);
+    if (hangmanSection) setVisible(hangmanSection, false);
+    if (chatLog) setVisible(chatLog, false);
+    if (scorePanel) setVisible(scorePanel, false);
+    if (podiumActions) setVisible(podiumActions, false);
+    if (finishVote) setVisible(finishVote, false);
+    setPlayUnlocked(false);
+    setGameHeader(false);
+    setRoomStatus('Rematch! Get ready to vote…');
+    setMode('game');
+    setGamePhase('waiting');
+  });
+
+  // Unlimited mode: live update of who has voted to finish.
+  socket.on('finish-votes-update', ({ votes = [], total = 0 } = {}) => {
+    console.log('[finish-votes-update]', { votes: votes.length, total, myVote: votes.includes(socket.id) });
+    if (finishVote && isUnlimited) setVisible(finishVote, true);
+    updateFinishVoteUI(votes, total);
+  });
+
   // A new drawing turn has started. Everyone sees the Create-mode canvas; only
   // the drawer can edit it, and guessers see the bottom guessing bar + chat log.
-  socket.on('turn-started', ({ drawerId, drawerName = '', round = 1, totalRounds: total = 0, blanks = '', answerLength = 0 } = {}) => {
+  socket.on('turn-started', ({ drawerId, drawerName = '', round = 1, totalRounds: total = 0, blanks = '', blankWords, answerLength = 0, duration = 60, players = null, finishVotes = [] } = {}) => {
     currentDrawerId = drawerId;
     currentRound = round;
     totalRounds = total;
+    isUnlimited = !totalRounds;
     amDrawing = drawerId === socket.id;
     inTurn = true;
+    setGameHeader(true);
+
+    // Game-mode turns always play at the default tempo, and the tempo control is hidden.
+    setTempo(150);
+    if (chosenMode) document.body.setAttribute('data-game-tool', chosenMode);
+
+    // Refresh the scoreboard icon immediately so the drawer gets the pencil
+    // without waiting for the follow-up player-list broadcast.
+    const scorePlayers = Array.isArray(players) && players.length ? players : lastPlayers;
+    if (scorePlayers.length) {
+      lastPlayers = scorePlayers;
+      renderScoreList(scorePlayers, currentDrawerId);
+    }
 
     // Start each turn with a clean canvas and empty chat log.
     strokes = [];
@@ -1572,29 +1765,53 @@ document.addEventListener('DOMContentLoaded', () => {
     redraw(lineX);
     if (chatLogList) chatLogList.innerHTML = '';
     if (hangmanBlanks) {
-      hangmanBlanks.textContent = blanks || '_'.repeat(answerLength);
+      hangmanBlanks.replaceChildren();
+      // `blanks` has an explicit 5-space delimiter between words. Always
+      // prefer it: some legacy servers send `blankWords` as one item per
+      // character, which would make every underline look like a separate word.
+      const wordsFromBlanks = String(blanks).trim().split(/\s{3,}/).filter(Boolean);
+      const wordsToRender = wordsFromBlanks.length
+        ? wordsFromBlanks
+        : (Array.isArray(blankWords) ? blankWords.filter(Boolean) : []);
+      if (wordsToRender.length) {
+        wordsToRender.forEach(word => {
+          const wordEl = document.createElement('span');
+          wordEl.className = 'blank-word';
+          wordEl.textContent = word;
+          hangmanBlanks.appendChild(wordEl);
+        });
+      } else {
+        hangmanBlanks.textContent = '_'.repeat(answerLength);
+      }
       hangmanBlanks.classList.remove('revealed');
     }
     if (guessBarInput) guessBarInput.value = '';
-    if (guessBar) guessBar.hidden = amDrawing;
+    if (chatInput) chatInput.hidden = amDrawing;
 
     const roundText = totalRounds ? `Round ${round} of ${totalRounds}` : `Round ${round}`;
 
+    // In unlimited mode, show the "Finish game" vote in the top bar.
+    if (finishVote) {
+      setVisible(finishVote, isUnlimited);
+      if (isUnlimited) {
+        const playerTotal = scorePlayers.length || lastPlayers.length || 1;
+        updateFinishVoteUI(finishVotes, playerTotal);
+      }
+    }
+
     // Show the canvas to everyone.
     setMode('create');
-    startTurnTimer(60);
+    startTurnTimer(duration);
 
     if (amDrawing) {
       setTool(chosenMode);
       setGamePhase('play');
       setVisible(drawerPrompt, true);
-      if (doneDrawingBtn) setVisible(doneDrawingBtn, true);
       setRoomStatus(`${roundText} — it's your turn to draw.`);
     } else {
       setTool('draw');
       setGamePhase('play');
       setVisible(drawerPrompt, false);
-      if (doneDrawingBtn) setVisible(doneDrawingBtn, false);
       setRoomStatus(`${roundText} — ${drawerName || 'The drawer'} is drawing. You are guessing.`);
     }
   });
@@ -1607,21 +1824,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // The game has finished (3 rounds completed).
-  socket.on('game-over', ({ drawCounts = {} } = {}) => {
+  // The game has finished after every active player completed the selected rounds.
+  socket.on('game-over', ({ players = lastPlayers } = {}) => {
     amDrawing = false;
     inTurn = false;
+    isUnlimited = false;
     clearInterval(turnTimerInterval);
+    clearTimeout(podiumTimer);
     if (drawerPrompt) setVisible(drawerPrompt, false);
-    if (doneDrawingBtn) setVisible(doneDrawingBtn, false);
     setVisible(guessSection, false);
-    if (guessBar) setVisible(guessBar, false);
     if (hangmanSection) setVisible(hangmanSection, false);
     if (chatLog) setVisible(chatLog, false);
-    if (scorePanel) setVisible(scorePanel, true);
-    if (pageTitle) setVisible(pageTitle, true);
+    if (finishVote) setVisible(finishVote, false);
     setPlayUnlocked(false);
-    setRoomStatus('Game over! Thanks for playing Classical music charades.');
+    setGameHeader(false);
+    setRoomStatus('');
+    renderPodium(Array.isArray(players) ? players : []);
+    setMode('game');
+    setGamePhase('podium');
+
+    // Show the rematch / go-back actions to everyone.
+    if (podiumActions) {
+      setVisible(podiumActions, true);
+      if (rematchBtn) {
+        const isHost = myRole === 'host';
+        rematchBtn.disabled = !isHost;
+        rematchBtn.title = isHost ? '' : 'Only the host can start a rematch';
+      }
+    }
+
+    // Fire confetti automatically once for the podium reveal.
+    fireConfetti();
   });
 
   // Play button becomes active after the first 30 seconds of a turn.
@@ -1629,11 +1862,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setPlayUnlocked(true);
   });
 
-  // Time is up or someone guessed correctly: reveal the answer.
+  // Time is up or someone guessed correctly: reveal the answer and lock guessing.
   socket.on('answer-revealed', ({ answer = '' } = {}) => {
     inTurn = false;
     clearInterval(turnTimerInterval);
     revealAnswer(answer);
+    // Once the answer is revealed, no one should be able to type more guesses.
+    if (chatInput) chatInput.hidden = true;
+    if (guessSection) setVisible(guessSection, false);
     setRoomStatus(`The answer was: ${answer}`);
   });
 
@@ -1645,9 +1881,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // A guess was made and the server judged it.
-  socket.on('guess-result', ({ playerName = 'Player', guess = '', correct = false, answer = '' } = {}) => {
+  socket.on('guess-result', ({ playerName = 'Player', guess = '', correct = false, answer = '', points = 0 } = {}) => {
     if (correct) {
-      addChatMessage(`<span class="chat-player">${escapeHtml(playerName)}</span> <span class="chat-right">got the answer!</span>`, 'chat-right');
+      addChatMessage(`<span class="chat-player">${escapeHtml(playerName)}</span> <span class="chat-right">got the answer! +${points} pts</span>`, 'chat-right');
       if (answer) revealAnswer(answer);
     } else {
       addChatMessage(`<span class="chat-player">${escapeHtml(playerName)}</span> guessed <span class="chat-wrong">"${escapeHtml(guess)}"</span>`);
