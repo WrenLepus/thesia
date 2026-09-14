@@ -208,8 +208,10 @@
     };
   </script>
 
-  <!-- Socket.IO client library, loaded from the Render game server. -->
-  <script src="https://thesia.onrender.com/socket.io/socket.io.js"></script>
+  <!-- Socket.IO client library. On the local/Render game server this is served
+       from the same origin; on a static host (e.g. GitHub Pages) it will 404 and
+       the no-op fallback in script.js keeps Create mode working. -->
+  <script src="/socket.io/socket.io.js"></script>
 
   <!-- Canvas Confetti for the end-of-game podium -->
   <script src="./assets/vendor/canvas-confetti/dist/confetti.browser.js"></script>

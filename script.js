@@ -1067,11 +1067,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---- Multiplayer (Socket.IO) ----
-  // The game server is hosted on Render. The Socket.IO client script is loaded
-  // from index.html; if it fails (e.g. on GitHub Pages without a server), we
-  // fall back to a no-op socket so Create mode still works.
-  const SOCKET_SERVER_URL = 'https://thesia.onrender.com';
-  const socket = typeof io === 'function' ? io(SOCKET_SERVER_URL) : { on: () => {}, emit: () => {}, connected: false };
+  // Connect to the Socket.IO server on the same origin (works for localhost and
+  // Render). If socket.io.js failed to load (e.g. on a static host like GitHub
+  // Pages), fall back to a no-op socket so Create mode still works offline.
+  const socket = typeof io === 'function' ? io() : { on: () => {}, emit: () => {}, connected: false };
 
   // Local state about the room we are in.
   let roomCode = null;
@@ -1883,10 +1882,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // A guess was made and the server judged it.
-  socket.on('guess-result', ({ playerName = 'Player', guess = '', correct = false, answer = '', points = 0 } = {}) => {
+  socket.on('guess-result', ({ playerName = 'Player', guess = '', correct = false, points = 0 } = {}) => {
     if (correct) {
+      // Keep the answer hidden so other guessers can still play until the timer runs out.
       addChatMessage(`<span class="chat-player">${escapeHtml(playerName)}</span> <span class="chat-right">got the answer! +${points} pts</span>`, 'chat-right');
-      if (answer) revealAnswer(answer);
     } else {
       addChatMessage(`<span class="chat-player">${escapeHtml(playerName)}</span> guessed <span class="chat-wrong">"${escapeHtml(guess)}"</span>`);
     }

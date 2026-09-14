@@ -34,13 +34,13 @@ const CHOICE_DURATION = 5;
 const RESULT_DISPLAY_TIME = 2;
 
 // How long each charades turn lasts, in seconds.
-const TURN_DURATION = 60;
+const TURN_DURATION = parseInt(process.env.THESIA_TURN_DURATION, 10) || 60;
 
 // How long into the turn before the Play button is enabled, in seconds.
-const PLAY_UNLOCK_TIME = 30;
+const PLAY_UNLOCK_TIME = parseInt(process.env.THESIA_PLAY_UNLOCK_TIME, 10) || 30;
 
 // How long the revealed answer lingers before the next turn starts, in seconds.
-const REVEAL_LINGER_TIME = 5;
+const REVEAL_LINGER_TIME = parseInt(process.env.THESIA_REVEAL_LINGER_TIME, 10) || 5;
 
 // Charades stays readable and the score panel usable with up to ten players.
 const MAX_PLAYERS = 10;
@@ -276,6 +276,7 @@ function startTurn(room) {
   room.currentAnswerTitle = title;
   room.turnStartTime = Date.now();
   room.turnResolved = false;
+  room.correctGuessers = new Set();
 
   // Build a hangman-style blank pattern: one string per word so the client
   // can render larger gaps between words and wrap long titles onto two lines.
@@ -433,6 +434,7 @@ io.on('connection', (socket) => {
       scores: {},
       turnStartTime: null,
       turnResolved: false,
+      correctGuessers: new Set(),
       turnTimer: null,
       playUnlockTimer: null,
       playUnlocked: false,
@@ -661,9 +663,14 @@ io.on('connection', (socket) => {
     const isCorrect = normalizeGuess(answer) === normalizeGuess(guess);
 
     if (isCorrect) {
-      // Mark this turn resolved before broadcasting, so simultaneous correct
-      // guesses cannot both receive a score.
-      room.turnResolved = true;
+      // A player can only score once per turn. The round keeps running so other
+      // guessers can still try, but ends early once every active guesser has
+      // scored.
+      if (room.correctGuessers.has(socket.id)) {
+        console.log(`[guess] already-scored: room=${room.code} player=${socket.id} guess="${guess}"`);
+        return;
+      }
+      room.correctGuessers.add(socket.id);
       const points = scoreForCorrectGuess(Date.now() - (room.turnStartTime || Date.now()));
       room.scores[socket.id] = (room.scores[socket.id] || 0) + points;
       console.log(`[guess] correct: room=${room.code} player=${socket.id} guess="${guess}" +${points}pts`);
@@ -673,14 +680,19 @@ io.on('connection', (socket) => {
         playerName,
         guess,
         correct: true,
-        answer,
         points
       });
-      // Reveal the answer and move on after a short celebration delay.
-      io.to(room.code).emit('answer-revealed', { answer });
-      clearTurnTimer(room);
-      room.turnTimer = setTimeout(() => endTurn(room), REVEAL_LINGER_TIME * 1000);
       broadcastPlayers(room);
+
+      // If every active guesser has now scored, end the round early.
+      const guessers = activePlayers(room).filter(p => p.id !== room.currentDrawerId);
+      if (guessers.length > 0 && guessers.every(p => room.correctGuessers.has(p.id))) {
+        console.log(`[guess] all guessers correct: room=${room.code} ending turn early`);
+        room.turnResolved = true;
+        clearTurnTimer(room);
+        io.to(room.code).emit('answer-revealed', { answer: room.currentAnswerTitle || '' });
+        room.turnTimer = setTimeout(() => endTurn(room), REVEAL_LINGER_TIME * 1000);
+      }
     } else {
       console.log(`[guess] wrong: room=${room.code} player=${socket.id} guess="${guess}"`);
       io.to(room.code).emit('guess-result', {
