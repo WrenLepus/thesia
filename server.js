@@ -12,7 +12,12 @@ const CLASSICAL_SONGS = require('./music-pieces');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: ['https://wrenlepus.github.io', 'http://localhost:3000', 'http://localhost:3001'],
+    methods: ['GET', 'POST']
+  }
+});
 
 // ------------------------------------------------------------------
 // 2. Serve static files (index.html, script.js, style.css, assets...)

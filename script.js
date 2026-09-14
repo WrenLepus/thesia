@@ -1067,11 +1067,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---- Multiplayer (Socket.IO) ----
-  // `io()` comes from the Socket.IO client script loaded in index.html.
-  // It connects back to the server that served the page. On static hosts like
-  // GitHub Pages the script won't load, so we use a no-op socket so Create mode
-  // still works without multiplayer.
-  const socket = typeof io === 'function' ? io() : { on: () => {}, emit: () => {}, connected: false };
+  // The game server is hosted on Render. The Socket.IO client script is loaded
+  // from index.html; if it fails (e.g. on GitHub Pages without a server), we
+  // fall back to a no-op socket so Create mode still works.
+  const SOCKET_SERVER_URL = 'https://thesia.onrender.com';
+  const socket = typeof io === 'function' ? io(SOCKET_SERVER_URL) : { on: () => {}, emit: () => {}, connected: false };
 
   // Local state about the room we are in.
   let roomCode = null;
