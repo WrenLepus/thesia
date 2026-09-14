@@ -1068,8 +1068,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---- Multiplayer (Socket.IO) ----
   // `io()` comes from the Socket.IO client script loaded in index.html.
-  // It connects back to the server that served the page.
-  const socket = io();
+  // It connects back to the server that served the page. On static hosts like
+  // GitHub Pages the script won't load, so we use a no-op socket so Create mode
+  // still works without multiplayer.
+  const socket = typeof io === 'function' ? io() : { on: () => {}, emit: () => {}, connected: false };
 
   // Local state about the room we are in.
   let roomCode = null;
