@@ -1067,10 +1067,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ---- Multiplayer (Socket.IO) ----
-  // Connect to the Socket.IO server on the same origin (works for localhost and
-  // Render). If socket.io.js failed to load (e.g. on a static host like GitHub
-  // Pages), fall back to a no-op socket so Create mode still works offline.
-  const socket = typeof io === 'function' ? io() : { on: () => {}, emit: () => {}, connected: false };
+  // Connect to the Socket.IO server. On localhost use the same origin; on a
+  // static host like GitHub Pages connect to the live Render server. If the
+  // library failed to load, fall back to a no-op socket so Create mode works.
+  const socket = typeof io === 'function'
+    ? io(window.THESIA_SERVER)
+    : { on: () => {}, emit: () => {}, connected: false };
 
   // Local state about the room we are in.
   let roomCode = null;

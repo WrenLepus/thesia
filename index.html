@@ -208,10 +208,15 @@
     };
   </script>
 
-  <!-- Socket.IO client library. On the local/Render game server this is served
-       from the same origin; on a static host (e.g. GitHub Pages) it will 404 and
-       the no-op fallback in script.js keeps Create mode working. -->
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- Socket.IO client library. Load from the live Render server when hosted on
+       GitHub Pages; use the same origin for local development. -->
+  <script>
+    window.THESIA_SERVER = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+      ? undefined
+      : 'https://thesia.onrender.com';
+    const socketScriptSrc = (window.THESIA_SERVER || '') + '/socket.io/socket.io.js';
+    document.write('<script src="' + socketScriptSrc + '"><\/script>');
+  </script>
 
   <!-- Canvas Confetti for the end-of-game podium -->
   <script src="./assets/vendor/canvas-confetti/dist/confetti.browser.js"></script>
