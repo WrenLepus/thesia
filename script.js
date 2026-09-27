@@ -30,7 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   modeButtons.forEach(btn => {
-    btn.addEventListener('click', () => setMode(btn.dataset.mode));
+    btn.addEventListener('click', () => {
+      setMode(btn.dataset.mode);
+      if (btn.dataset.mode === 'game') tryLockLandscape();
+    });
   });
 
   // ---- Fallback synth map (used while the SF2 soundbank loads or if it fails) ----
@@ -77,13 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.toggle('active', active);
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
-    asciiInput.hidden = tool !== 'ascii';
-    sideControls.hidden = false;
-
     // In a multiplayer game, only the drawer can edit the canvas/ASCII.
     const canEdit = !roomCode || amDrawing;
     if (asciiArea) asciiArea.disabled = !canEdit;
     if (doneAsciiBtn) doneAsciiBtn.disabled = !canEdit;
+
+    asciiInput.hidden = tool !== 'ascii';
+    sideControls.hidden = false;
 
     if (tool === 'draw') {
       resizeCanvas();
@@ -690,12 +693,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return getInstrumentConfig(currentColor);
   }
 
-  function applyEnvelope(gain, when, cfg, holdDuration) {
+  function applyEnvelope(gain, when, cfg, holdDuration, isSample = false) {
     const peak = 0.45;
-    const sustainLevel = Math.max(peak * cfg.sustain, 0.0001);
     const attack = cfg.attack;
-    const decay = cfg.decay;
     const release = cfg.release;
+
+    if (isSample) {
+      // For sampled instruments (e.g. piano), hold the note at full level for as
+      // long as the play line covers the key, then release. This keeps the
+      // soundfont from being cut short while the line is still in the note's
+      // y-interval.
+      const hold = typeof holdDuration === 'number' && holdDuration > 0 ? holdDuration : 0.2;
+      const stopTime = when + attack + hold + release;
+
+      gain.gain.setValueAtTime(0.0001, when);
+      gain.gain.exponentialRampToValueAtTime(peak, when + attack);
+      gain.gain.setValueAtTime(peak, when + attack + hold);
+      gain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
+
+      return stopTime - when;
+    }
+
+    const sustainLevel = Math.max(peak * cfg.sustain, 0.0001);
+    const decay = cfg.decay;
 
     let sustainEnd;
     if (typeof holdDuration === 'number' && holdDuration > attack + decay) {
@@ -728,14 +748,14 @@ document.addEventListener('DOMContentLoaded', () => {
     gain.connect(audioCtx.destination);
 
     const offset = semitone * soundbankManifest.noteDuration;
-    const noteDuration = applyEnvelope(gain, when, cfg, holdDuration);
+    const noteDuration = applyEnvelope(gain, when, cfg, holdDuration, true);
     // Each note in the combined WAV is exactly noteDuration seconds long.
     const maxAvailable = soundbankManifest.noteDuration - 0.02;
     const sourceDuration = Math.max(0.05, Math.min(noteDuration, maxAvailable));
 
     source.start(when, offset, sourceDuration);
     source.stop(when + sourceDuration + 0.02);
-    activeKeys.set(semitone, { color, until: when + Math.min(holdDuration, 0.15) + 0.05 });
+    activeKeys.set(semitone, { color, until: when + holdDuration + cfg.release + 0.05 });
     return true;
   }
 
@@ -756,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     osc.start(when);
     osc.stop(when + noteDuration + 0.02);
-    activeKeys.set(semitone, { color, until: when + Math.min(holdDuration, 0.15) + 0.05 });
+    activeKeys.set(semitone, { color, until: when + holdDuration + cfg.release + 0.05 });
   }
 
   function scheduleTone(semitone, when, color, holdDuration) {
@@ -910,11 +930,20 @@ document.addEventListener('DOMContentLoaded', () => {
     redraw(lineX);
   }
 
+  let asciiBroadcastTimeout;
   asciiArea.addEventListener('input', () => {
-    // defer full analysis until Done, but update rendering with current mappings
-    renderASCII();
+    // Analyze on every keystroke so new symbols get a colour and show up
+    // immediately for the drawer and, in a multiplayer game, for guessers too.
+    analyzeASCII();
+    if (roomCode) {
+      clearTimeout(asciiBroadcastTimeout);
+      asciiBroadcastTimeout = setTimeout(broadcastState, 30);
+    }
   });
-  doneAsciiBtn.addEventListener('click', analyzeASCII);
+  doneAsciiBtn.addEventListener('click', () => {
+    analyzeASCII();
+    if (roomCode) setTimeout(broadcastState, 10);
+  });
 
   // ---- Play / scanner ----
   function resetPlayedFlags() {
@@ -1074,6 +1103,25 @@ document.addEventListener('DOMContentLoaded', () => {
     ? io(window.THESIA_SERVER)
     : { on: () => {}, emit: () => {}, connected: false };
 
+  // Landscape lock for phones: only try on touch devices, fail silently otherwise.
+  let orientationLockAttempted = false;
+  function isTouchDevice() {
+    return window.matchMedia('(pointer: coarse)').matches;
+  }
+  function tryLockLandscape() {
+    if (orientationLockAttempted) return;
+    orientationLockAttempted = true;
+    if (!isTouchDevice()) return;
+    if (!screen.orientation || typeof screen.orientation.lock !== 'function') return;
+    screen.orientation.lock('landscape').catch(() => {});
+  }
+  function unlockOrientation() {
+    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+      screen.orientation.unlock().catch(() => {});
+    }
+    orientationLockAttempted = false;
+  }
+
   // Local state about the room we are in.
   let roomCode = null;
   let myRole = null;
@@ -1115,13 +1163,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const chosenCard = document.getElementById('chosenCard');
   const podiumRoom = document.getElementById('podiumRoom');
   const podiumStandings = document.getElementById('podiumStandings');
-  const confettiBtn = document.getElementById('confettiBtn');
   const podiumActions = document.getElementById('podiumActions');
   const rematchBtn = document.getElementById('rematchBtn');
   const podiumBackBtn = document.getElementById('podiumBackBtn');
   const finishVote = document.getElementById('finishVote');
   const finishGameBtn = document.getElementById('finishGameBtn');
   const finishVoteCount = document.getElementById('finishVoteCount');
+
+  // Piece-selection overlay references.
+  const pieceChoiceOverlay = document.getElementById('pieceChoiceOverlay');
+  const pieceChoiceOptions = document.getElementById('pieceChoiceOptions');
+  const pieceChoiceTimerEl = document.getElementById('pieceChoiceTimer');
 
   // ---- Classical charades state and UI ----
   let currentDrawerId = null;
@@ -1137,6 +1189,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastPlayers = []; // most recent player list from the server
   let socketHasConnected = socket.connected;
   let podiumTimer = null;
+  let confettiInterval = null;
+  let pieceChoiceInterval = null;
 
   // Initialise the create-mode tools now that all state they close over is declared.
   setTool('draw');
@@ -1209,6 +1263,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function resetRoomUI() {
+    unlockOrientation();
+    hidePieceChoice();
     roomCode = null;
     myRole = null;
     currentChoiceType = null;
@@ -1225,6 +1281,8 @@ document.addEventListener('DOMContentLoaded', () => {
     clearInterval(timerInterval);
     clearInterval(turnTimerInterval);
     clearTimeout(podiumTimer);
+    clearInterval(confettiInterval);
+    confettiInterval = null;
     if (drawerPrompt) drawerPrompt.hidden = true;
     if (playerList) playerList.innerHTML = '';
     if (scoreList) scoreList.innerHTML = '';
@@ -1414,22 +1472,46 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!podiumStandings) return;
     podiumStandings.replaceChildren();
 
-    const topThree = [...players]
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 3);
+    const sorted = [...players]
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    // Standard competition ranking: tied players share the same placement.
+    const ranks = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i > 0 && (sorted[i].score || 0) === (sorted[i - 1].score || 0)) {
+        ranks.push(ranks[i - 1]);
+      } else {
+        ranks.push(i + 1);
+      }
+    }
+
+    const topThree = sorted.slice(0, 3);
+    const topRanks = ranks.slice(0, 3);
+
+    // Work out which scores are tied so we can mark them.
+    const scoreCounts = {};
+    for (const player of sorted) {
+      const s = player.score || 0;
+      scoreCounts[s] = (scoreCounts[s] || 0) + 1;
+    }
+
     const displayOrder = [1, 0, 2]; // second, first, third: Kahoot-style podium
 
     displayOrder.forEach(index => {
       const player = topThree[index];
       if (!player) return;
 
-      const rank = index + 1;
+      const rank = topRanks[index];
+      const isTied = scoreCounts[player.score || 0] > 1;
+      const ordinal = rank === 1 ? '1st' : rank === 2 ? '2nd' : rank === 3 ? '3rd' : `${rank}th`;
+      const rankLabel = `${ordinal}${isTied ? ' (tied)' : ''}`;
+
       const card = document.createElement('article');
       card.className = `podium-player podium-player--${rank}`;
 
       const rankEl = document.createElement('span');
       rankEl.className = 'podium-rank';
-      rankEl.textContent = `${rank}${rank === 1 ? 'st' : rank === 2 ? 'nd' : 'rd'}`;
+      rankEl.textContent = rankLabel;
 
       const nameEl = document.createElement('strong');
       nameEl.className = 'podium-name';
@@ -1463,6 +1545,52 @@ document.addEventListener('DOMContentLoaded', () => {
     fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
     fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
     fire(0.1, { spread: 120, startVelocity: 45 });
+  }
+
+  // ---- Piece-selection overlay helpers ----
+  function hidePieceChoice() {
+    clearInterval(pieceChoiceInterval);
+    pieceChoiceInterval = null;
+    if (pieceChoiceOverlay) setVisible(pieceChoiceOverlay, false);
+  }
+
+  function startPieceChoiceTimer(seconds) {
+    clearInterval(pieceChoiceInterval);
+    if (!pieceChoiceTimerEl) return;
+    let remaining = seconds;
+    pieceChoiceTimerEl.textContent = String(remaining);
+    pieceChoiceInterval = setInterval(() => {
+      remaining--;
+      pieceChoiceTimerEl.textContent = String(Math.max(0, remaining));
+      if (remaining <= 0) clearInterval(pieceChoiceInterval);
+    }, 1000);
+  }
+
+  function submitPieceChoice(choiceIndex) {
+    if (!roomCode) return;
+    if (pieceChoiceOptions) {
+      pieceChoiceOptions.querySelectorAll('.piece-option').forEach(btn => btn.disabled = true);
+    }
+    socket.emit('piece-chosen', { code: roomCode, index: choiceIndex });
+  }
+
+  function renderPieceChoiceOptions(options) {
+    if (!pieceChoiceOptions) return;
+    pieceChoiceOptions.innerHTML = '';
+    options.forEach((option, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'piece-option';
+      btn.type = 'button';
+      btn.textContent = option;
+      btn.addEventListener('click', () => submitPieceChoice(index));
+      pieceChoiceOptions.appendChild(btn);
+    });
+  }
+
+  function showPieceChoice(options, duration) {
+    if (pieceChoiceOverlay) setVisible(pieceChoiceOverlay, true);
+    renderPieceChoiceOptions(options);
+    startPieceChoiceTimer(duration);
   }
 
   function startChoiceTimer(seconds) {
@@ -1554,11 +1682,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Ask the server to create a new room when the user clicks "Create room".
   document.getElementById('createRoomBtn').addEventListener('click', () => {
+    tryLockLandscape();
     socket.emit('create-room');
   });
 
   // Join an existing room using the code typed into the input.
   document.getElementById('joinRoomBtn').addEventListener('click', () => {
+    tryLockLandscape();
     const code = joinCodeInput.value.trim().toUpperCase();
     if (!code) {
       setRoomStatus('Enter a room code first.', { error: true });
@@ -1583,11 +1713,6 @@ document.addEventListener('DOMContentLoaded', () => {
     goToCustomizeBtn.addEventListener('click', () => {
       if (roomCode) socket.emit('go-to-customize', roomCode);
     });
-  }
-
-  // Podium: run confetti on demand.
-  if (confettiBtn) {
-    confettiBtn.addEventListener('click', fireConfetti);
   }
 
   // Podium: host starts a rematch; everyone else sees the button disabled.
@@ -1717,6 +1842,9 @@ document.addEventListener('DOMContentLoaded', () => {
     playUnlocked = false;
     clearInterval(turnTimerInterval);
     clearTimeout(podiumTimer);
+    clearInterval(confettiInterval);
+    confettiInterval = null;
+    hidePieceChoice();
     if (drawerPrompt) setVisible(drawerPrompt, false);
     if (hangmanSection) setVisible(hangmanSection, false);
     if (chatLog) setVisible(chatLog, false);
@@ -1737,9 +1865,60 @@ document.addEventListener('DOMContentLoaded', () => {
     updateFinishVoteUI(votes, total);
   });
 
+  // Pre-turn piece selection: the drawer chooses from 3 random pieces.
+  socket.on('piece-choice-started', ({ drawerId, drawerName = '', options = [], duration = 10, round = 1, totalRounds: total = 0 } = {}) => {
+    currentDrawerId = drawerId;
+    currentRound = round;
+    totalRounds = total;
+    amDrawing = drawerId === socket.id;
+    inTurn = false;
+    playUnlocked = false;
+    setPlayUnlocked(false);
+    clearInterval(turnTimerInterval);
+    clearTimeout(podiumTimer);
+
+    // Game-mode turns always play at the default tempo, and the tempo control is hidden.
+    setTempo(150);
+    if (chosenMode) document.body.setAttribute('data-game-tool', chosenMode);
+
+    // Refresh the scoreboard icon immediately.
+    if (lastPlayers.length) renderScoreList(lastPlayers, currentDrawerId);
+
+    // Start the turn with a clean canvas and empty chat log.
+    strokes = [];
+    currentStroke = null;
+    asciiArea.value = '';
+    analyzeASCII();
+    redraw(lineX);
+    if (chatLogList) chatLogList.innerHTML = '';
+    if (guessBarInput) guessBarInput.value = '';
+
+    // Show the canvas area but keep it locked until the prompt is chosen.
+    setMode('create');
+    if (pageTitle) setVisible(pageTitle, false);
+    if (scorePanel) setVisible(scorePanel, true);
+    if (chatLog) setVisible(chatLog, true);
+    if (chatInput) chatInput.hidden = true;
+    if (hangmanSection) setVisible(hangmanSection, false);
+    if (guessSection) setVisible(guessSection, false);
+    if (drawerPrompt) setVisible(drawerPrompt, false);
+    setGameHeader(true);
+
+    const roundText = totalRounds ? `Round ${round} of ${totalRounds}` : `Round ${round}`;
+
+    if (amDrawing) {
+      showPieceChoice(options, duration);
+      setRoomStatus(`${roundText} — Choose your piece before time runs out!`);
+    } else {
+      hidePieceChoice();
+      setRoomStatus(`${roundText} — ${drawerName || 'The drawer'} is choosing their piece.`);
+    }
+  });
+
   // A new drawing turn has started. Everyone sees the Create-mode canvas; only
   // the drawer can edit it, and guessers see the bottom guessing bar + chat log.
   socket.on('turn-started', ({ drawerId, drawerName = '', round = 1, totalRounds: total = 0, blanks = '', blankWords, answerLength = 0, duration = 60, players = null, finishVotes = [] } = {}) => {
+    hidePieceChoice();
     currentDrawerId = drawerId;
     currentRound = round;
     totalRounds = total;
@@ -1812,7 +1991,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setVisible(drawerPrompt, true);
       setRoomStatus(`${roundText} — it's your turn to draw.`);
     } else {
-      setTool('draw');
+      setTool(chosenMode);
       setGamePhase('play');
       setVisible(drawerPrompt, false);
       setRoomStatus(`${roundText} — ${drawerName || 'The drawer'} is drawing. You are guessing.`);
@@ -1856,7 +2035,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Fire confetti automatically once for the podium reveal.
+    // Fire confetti automatically and keep it going every 3 seconds.
+    clearInterval(confettiInterval);
+    confettiInterval = setInterval(fireConfetti, 3000);
     fireConfetti();
   });
 
@@ -1937,9 +2118,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // A short timeout lets any stroke rebuilding/erase commit finish first.
   window.addEventListener('mouseup', () => setTimeout(broadcastState, 10));
   window.addEventListener('touchend', () => setTimeout(broadcastState, 10));
-
-  // Broadcast when ASCII analysis is done.
-  doneAsciiBtn.addEventListener('click', () => setTimeout(broadcastState, 10));
 
   // Broadcast when the canvas is cleared.
   document.getElementById('clearBtn').addEventListener('click', () => {

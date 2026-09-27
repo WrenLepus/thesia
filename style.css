@@ -600,10 +600,6 @@ body[data-tool="ascii"] #eraserGroup {
 .podium-player--3 .podium-rank { color: #9A5A2A; }
 .podium-player--3 .podium-step { height: 72px; background: #B66A31; }
 
-#confettiBtn {
-  margin-bottom: 8px;
-}
-
 .podium-actions {
   display: flex;
   gap: 12px;
@@ -1303,6 +1299,41 @@ footer {
   height: 360px;
 }
 
+/* ---- Portrait-phone rotate prompt ---- */
+.rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  text-align: center;
+}
+
+.rotate-prompt-content {
+  max-width: 320px;
+}
+
+.rotate-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.rotate-prompt p {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--burgundy);
+}
+
+@media (orientation: portrait) and (max-width: 640px) {
+  .rotate-prompt {
+    display: flex;
+  }
+}
+
 /* In game mode, only the room-voted tool is available. */
 .in-game[data-game-tool="draw"] .tool-btn[data-tool="ascii"],
 .in-game[data-game-tool="ascii"] .tool-btn[data-tool="draw"] {
@@ -1348,4 +1379,75 @@ footer {
   .in-game .chat-log {
     height: 280px;
   }
+}
+
+/* ---- Pre-turn piece-selection overlay ---- */
+.piece-choice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(42, 33, 31, 0.85);
+}
+
+.piece-choice-overlay[hidden] {
+  display: none;
+}
+
+.piece-choice-panel {
+  background: var(--panel);
+  padding: 32px;
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  max-width: 760px;
+  width: 100%;
+}
+
+.piece-choice-panel h2 {
+  margin: 0 0 8px;
+  color: var(--burgundy);
+  font-size: clamp(1.3rem, 4vw, 1.8rem);
+}
+
+.piece-choice-timer {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--orange);
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 20px;
+}
+
+.piece-choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+
+.piece-option {
+  appearance: none;
+  border: 2px solid var(--border);
+  background: var(--panel-warm);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 14px 24px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.piece-option:hover {
+  border-color: var(--orange);
+  background: #fff;
+  transform: translateY(-2px);
+}
+
+.piece-option:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }

@@ -8,6 +8,22 @@
   <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body data-mode="create">
+  <div id="rotatePrompt" class="rotate-prompt" aria-hidden="true">
+    <div class="rotate-prompt-content">
+      <div class="rotate-icon" aria-hidden="true">📱↺</div>
+      <p>Please rotate your device to landscape for the best experience.</p>
+    </div>
+  </div>
+
+  <!-- Pre-turn piece selection overlay (drawer only) -->
+  <div id="pieceChoiceOverlay" class="piece-choice-overlay" hidden>
+    <div class="piece-choice-panel">
+      <h2>You are drawing! Please choose your piece.</h2>
+      <p class="piece-choice-timer" id="pieceChoiceTimer">10</p>
+      <div class="piece-choice-options" id="pieceChoiceOptions"></div>
+    </div>
+  </div>
+
   <header class="top-bar">
     <a class="brand" href="/" aria-label="Thesia home">
       <img class="logo" src="favicon.ico" alt="Thesia logo">
@@ -176,7 +192,6 @@
       <div class="game-placeholder podium-room" id="podiumRoom" hidden>
         <p class="podium-kicker">Final results</p>
         <h2>Top players</h2>
-        <button id="confettiBtn" class="action-btn primary" type="button">🎉 Run Confetti</button>
         <div class="podium-standings" id="podiumStandings" aria-label="Final podium"></div>
         <div class="podium-actions" id="podiumActions" hidden>
           <button id="rematchBtn" class="action-btn primary" type="button">Rematch</button>

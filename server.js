@@ -36,6 +36,9 @@ const RESULT_DISPLAY_TIME = 2;
 // How long each charades turn lasts, in seconds.
 const TURN_DURATION = parseInt(process.env.THESIA_TURN_DURATION, 10) || 60;
 
+// How long the drawer has to choose a piece, in seconds.
+const PIECE_CHOICE_DURATION = parseInt(process.env.THESIA_PIECE_CHOICE_DURATION, 10) || 10;
+
 // How long into the turn before the Play button is enabled, in seconds.
 const PLAY_UNLOCK_TIME = parseInt(process.env.THESIA_PLAY_UNLOCK_TIME, 10) || 30;
 
@@ -235,6 +238,79 @@ function startGame(room) {
     choices: room.choices
   });
 
+  startPieceChoice(room);
+}
+
+function ensurePromptQueue(room) {
+  if (!room.promptQueue || room.promptQueue.length === 0) {
+    room.promptQueue = shuffle(CLASSICAL_SONGS);
+    // If possible, don't put the just-used prompt at the front of the new queue.
+    if (room.currentPrompt && room.promptQueue.length > 1 && room.promptQueue[0] === room.currentPrompt) {
+      const swapIdx = 1 + Math.floor(Math.random() * (room.promptQueue.length - 1));
+      [room.promptQueue[0], room.promptQueue[swapIdx]] = [room.promptQueue[swapIdx], room.promptQueue[0]];
+    }
+  }
+}
+
+function pickPrompt(room) {
+  ensurePromptQueue(room);
+  room.currentPrompt = room.promptQueue.pop();
+}
+
+function startPieceChoice(room) {
+  const players = activePlayers(room);
+  if (players.length === 0) return;
+
+  // Compute the round number from total completed turns.
+  const totalDrawsBefore = Object.values(room.drawCounts).reduce((a, b) => a + b, 0);
+  room.currentRound = Math.floor(totalDrawsBefore / players.length) + 1;
+
+  // Assign the drawer in rotating order.
+  const drawer = players[room.currentDrawerIndex % players.length];
+  room.currentDrawerId = drawer.id;
+
+  // Pick 3 options from the prompt queue, avoiding already-drawn pieces.
+  ensurePromptQueue(room);
+  const options = [];
+  while (options.length < 3) {
+    if (room.promptQueue.length === 0) ensurePromptQueue(room);
+    options.push(room.promptQueue.pop());
+  }
+
+  room.pieceChoice = { options, chosenIndex: null };
+  room.phase = 'piece-choice';
+
+  io.to(room.code).emit('piece-choice-started', {
+    drawerId: drawer.id,
+    drawerName: drawer.name || 'Player',
+    options,
+    duration: PIECE_CHOICE_DURATION,
+    round: room.currentRound,
+    totalRounds: room.choices.totalRounds || null
+  });
+
+  room.pieceChoiceTimer = setTimeout(() => finalizePieceChoice(room), PIECE_CHOICE_DURATION * 1000);
+}
+
+function finalizePieceChoice(room, chosenIndex = null) {
+  if (room.pieceChoiceTimer) {
+    clearTimeout(room.pieceChoiceTimer);
+    room.pieceChoiceTimer = null;
+  }
+  if (!room.pieceChoice) return;
+
+  const options = room.pieceChoice.options;
+  if (typeof chosenIndex !== 'number' || chosenIndex < 0 || chosenIndex >= options.length) {
+    chosenIndex = Math.floor(Math.random() * options.length);
+  }
+
+  room.currentPrompt = options[chosenIndex];
+  // Put the unchosen pieces back into the pool so they can appear later.
+  for (let i = 0; i < options.length; i++) {
+    if (i !== chosenIndex) room.promptQueue.push(options[i]);
+  }
+
+  room.pieceChoice = null;
   startTurn(room);
 }
 
@@ -246,16 +322,13 @@ function startTurn(room) {
   const totalDrawsBefore = Object.values(room.drawCounts).reduce((a, b) => a + b, 0);
   room.currentRound = Math.floor(totalDrawsBefore / players.length) + 1;
 
-  // Pick the next Classical prompt, avoiding immediate repeats within a room.
-  if (!room.promptQueue || room.promptQueue.length === 0) {
-    room.promptQueue = shuffle(CLASSICAL_SONGS);
-    // If possible, don't put the just-used prompt at the front of the new queue.
-    if (room.currentPrompt && room.promptQueue.length > 1 && room.promptQueue[0] === room.currentPrompt) {
-      const swapIdx = 1 + Math.floor(Math.random() * (room.promptQueue.length - 1));
-      [room.promptQueue[0], room.promptQueue[swapIdx]] = [room.promptQueue[swapIdx], room.promptQueue[0]];
-    }
+  room.phase = 'playing';
+
+  // If a piece was already chosen during the pre-turn selection, use it.
+  // Otherwise pick the next Classical prompt from the queue.
+  if (!room.currentPrompt) {
+    pickPrompt(room);
   }
-  room.currentPrompt = room.promptQueue.pop();
 
   // Assign the drawer in rotating order.
   const drawer = players[room.currentDrawerIndex % players.length];
@@ -334,7 +407,16 @@ function startTurnTimer(room) {
   }, TURN_DURATION * 1000);
 }
 
+function clearPieceChoiceTimer(room) {
+  if (room.pieceChoiceTimer) {
+    clearTimeout(room.pieceChoiceTimer);
+    room.pieceChoiceTimer = null;
+  }
+  room.pieceChoice = null;
+}
+
 function clearTurnTimer(room) {
+  clearPieceChoiceTimer(room);
   if (room.turnTimer) {
     clearTimeout(room.turnTimer);
     room.turnTimer = null;
@@ -383,7 +465,7 @@ function endTurn(room) {
     return;
   }
 
-  startTurn(room);
+  startPieceChoice(room);
 }
 
 // ------------------------------------------------------------------
@@ -438,7 +520,10 @@ io.on('connection', (socket) => {
       turnTimer: null,
       playUnlockTimer: null,
       playUnlocked: false,
-      finishVotes: new Set()
+      finishVotes: new Set(),
+      // Pre-turn piece selection
+      pieceChoice: null,
+      pieceChoiceTimer: null
     };
 
     socket.join(code);
@@ -534,7 +619,8 @@ io.on('connection', (socket) => {
     console.log(`Host kicked player ${playerId} from room ${code}`);
 
     // If the drawer was removed, advance so the game doesn't stall.
-    if (room.phase === 'playing' && wasDrawer) {
+    if (wasDrawer && (room.phase === 'playing' || room.phase === 'piece-choice')) {
+      clearPieceChoiceTimer(room);
       endTurn(room);
     }
 
@@ -593,6 +679,8 @@ io.on('connection', (socket) => {
     room.turnResolved = false;
     room.playUnlocked = false;
     room.finishVotes = new Set();
+    room.pieceChoice = null;
+    room.pieceChoiceTimer = null;
     clearTurnTimer(room);
 
     // Tell everyone the rematch is starting, then run the customization vote.
@@ -623,6 +711,18 @@ io.on('connection', (socket) => {
     if (room.currentChoice.voterIds.size >= activePlayers(room).length) {
       finalizeChoice(room);
     }
+  });
+
+  // --------------------------------------------------------------
+  // Drawer chooses a piece during the pre-turn selection phase
+  // --------------------------------------------------------------
+  socket.on('piece-chosen', ({ code, index }) => {
+    const room = rooms[code?.toUpperCase?.()];
+    if (!room || room.phase !== 'piece-choice' || !room.pieceChoice) return;
+    if (room.currentDrawerId !== socket.id) return;
+    if (typeof index !== 'number') return;
+
+    finalizePieceChoice(room, index);
   });
 
   // --------------------------------------------------------------
@@ -786,8 +886,9 @@ io.on('connection', (socket) => {
         room.finishVotes.delete(socket.id);
         broadcastPlayers(room);
 
-        // If the drawer left mid-game, skip to the next turn so the game doesn't stall.
-        if (room.phase === 'playing' && wasDrawer) {
+        // If the drawer left mid-game or mid-piece-selection, skip to the next turn.
+        if (wasDrawer && (room.phase === 'playing' || room.phase === 'piece-choice')) {
+          clearPieceChoiceTimer(room);
           endTurn(room);
         }
 
